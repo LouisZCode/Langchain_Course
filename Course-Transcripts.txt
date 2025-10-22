@@ -1,0 +1,324 @@
+=============================================
+File: LCA_LCEssentials_Python_M1_V1_Intro.txt
+=============================================
+
+[00:00:00] 
+
+sydney: Welcome to LangChain Essentials. Thank you for joining the course. In this course, you'll learn to use LangChain to build an agent application, and along the way, many of the basic building blocks available in LangChain. But first, why use LangChain? The LangChain Open source library is a really popular way to build LLM applications.
+
+Last month, we had over 80 million downloads and we're constantly improving it. A big driver for many users is model independence. Each LLM vendor has a unique API, and these APIs are being frequently updated. With LangChain, you can build your app and switch models between vendors and models without needing to rewrite code. We've recently added a new easy to use agent that is really the centerpiece of this course.
+
+This agent is built on LangGraph, giving the agent durable execution, persistence, and more. The agent itself has been built to be extremely flexible. In particular, it support what we call middleware. This enables you to customize your agent to fit your needs. [00:01:00] You'll learn more about this in the course.
+
+In the course. We'll start with a simple agentic application and then build on it as we explore the capabilities of the agent and LangChain. You'll learn about building blocks, such as models, messages, memory, and tools. You will use the agent and enhance it with middleware. This will let you add dynamic prompting and model selection, adapting the prompt and model to changing conditions.
+
+You'll learn how to add custom code before and after model and tool calls. You'll also use LangSmith and Studio a visibility tool specifically designed for stateful agents. Let's get started.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L1_V1_FastAgent.txt
+=============================================
+
+sydney: [00:00:00] This course is broken up into three main parts. First, you'll work through a basic agent demonstration by building a SQL agent in just a few lines of code. Then we'll talk about LangChain Agent Fundamentals, like working with messages and streaming from LLMs.
+
+Finally, we'll talk about the many ways that you can customize your agent. In particular using middleware to add prebuilt or customized features. LangChain has a new emphasis on agents with a new ReAct agent. ReAct stands for Reasoning and Acting. ReAct agents operate in a loop. It starts when a model receives a request.
+
+It first reasons about it. It then uses tools to take action. The tools provide observations. At this point, the LLM can reason again, determine if it can respond to the request by producing a final result, or it can take further action and continue the tool calling loop. As you will see in the upcoming demonstration, this loop can be effective over many [00:01:00] cycles.
+
+The new model is built with LangGraph under the hood, which provides persistence and durability, streaming, interrupts, tracing and deployment. The best part about the new ReAct agent is that it's quick to build with, as you will see in the first lab. Here's a quick look at this lab. We'll use this throughout the course.
+
+You'll build an agent that can explore the Chinook SQL light database. This is from the LangChain Community Library. You'll provide the agent with just a single tool that can execute SQL commands. The agent must discover the schema, program SQL commands, and check the results. Some fun things to watch for are what happens when the model generates incorrect commands.
+
+Great. Let's get started. In this first lab, we're going to be building a SQL agent with just a few lines of code. First, we'll start with the setup. We are importing the SQL database abstraction from LangChain community, and then we are loading the Chinook database. We're going to do just a little bit [00:02:00] of setup here, defining some runtime context that has access to our database instance so that the agent and tools have access to our database.
+
+Now we're going to define our execute_sql tool. Note. We use this get runtime function to get our runtime context information, which has that database attached. You can see we run the query and then return an error if there is one.
+
+Next, we define a system prompt to define our agent's behavior. We first give it some general directions, then a couple rules to help it execute well. Note one particular rule here that's helpful is that if the tool returns error, we ask the model to revise the generated SQL and try again.
+
+Alright, let's get started. We're going to create our agent using the create agent primitive from LangChain dot agents. We pass in a model, in this case, open AI's GPT five model. [00:03:00] Tools, in this case, just our execute SQL tool defined above. Our system prompt and that runtime context schema used to access the database.
+
+Here's a basic overview of that React agent loop. We can see the model and tools in a loop, and then the fact that the model can exit to end whenever it's done calling tools. Alright, now we're going to run some queries. Let's first notice. The agent does not have access to the database schema, so it needs to discover it independently via SQL queries.
+
+This means that the agent may make mistakes. By returning error messages, the agent can self-correct its queries by responding to said errors. A couple of other notes we're going to invoke the agent with agent dot stream, and then we use the pretty print command to display messages and conversation history nicely.
+
+Our last thing is that. The agent doesn't remember the schema in between invocations. We'll talk about how we can control this later with memory. [00:04:00] Alright, let's ask our first question. Which table has the largest number of entries? We invoke our agent with a question, and we're printing the conversation history here.
+
+First, we see a human message, that's our question. Then we see an AI message with the execute SQL tool call that's asking for the available tables in our database. We see the execute SQL tool returns a list of the available tables. Next we see another AI message calling the execute SQL tool. This time listing the count of rows in each table and then selecting the top table by row count.
+
+The execute SQL tool message has the playlist track table listed with 8,715 rows, and then our final AI message makes this a little bit more intelligible. Returning a nice sentence. Alright, next query. Which genre on average has the longest tracks? [00:05:00] We invoke the agent in the same way we see our human message. Then an execute SQL tool call. But uh oh. Looks like we have an error due to invalid SQL. There's no such table genres. Again, let's remember, the agent does not have access to our database schema, and it doesn't remember which tables we have from the previous query.
+
+Now we see this next AI message with an execute SQL tool call requesting the table names, then the execute SQL result, and then we see a successful query on the genres with the longest tracks. And then we see successful execute SQL tool call on the capital G genres table. The result here shows sci-fi and fantasy. And then again, the model turns this into helpful information in a final sentence. Let's look at one last query here. We're just going to ask the agent to list all of the tables.
+
+This is a pretty simple query. We see the successful tool message with these now [00:06:00] familiar tables, and then a summarized list. Here are all the tables. Great.
+
+Next up, try your own query. Let's go try this out in the agent debugger. Welcome to our agent Debugger. You can see the classic graphical representation of our agent here with a model and tool calling loop.
+
+Now let's try asking our agent a question.
+
+All right. We can see the model is executing. Makes a tool call. We see a tool result, and then a final message from the model as well. So first we ask, do you know about a customer named Frank Harris? The model calls the execute SQL tool, which returns a result, and then we see another tool call from the model which returns another result.
+
+Finally, our response gives us lots of information about Frank Harris. Let's ask a follow up question.[00:07:00] 
+
+All right, so we asked about Frank Harris' recent purchase history. We can see a couple of tool calls and executions. Then we get a final result summarizing his most recent invoices and some previous invoices. One of the best things about the agent debugger is that you can also view things in trace mode.
+
+So let's look at our second query here. We see the model executes. We can see those tool call and responses in action, a few iterations,. You can also see the full history on the right hand side. Here's the code you were just running for the next section. We'll dive into each of the elements of this lab.
+
+This includes models. Messages and prompts, [00:08:00] streaming tools and runtime context. We'll also talk about memory and structured outputs. Let's start off with models.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L2_V1_Models_And_Messages.txt
+=============================================
+
+sydney: [00:00:00] The models provide the reasoning component in ReAct. We will be using chat models. One of the areas LangChain puts a lot of effort into is supporting many models and vendors. We currently support over 100 vendors. There are a couple of different ways that you can specify your model choice as seen below.
+
+Our new doc site highlights a variety of our provider integrations. So you can see common chat models, and featured providers with a feature table as well. Here's all of the chat models we support.
+
+Messages are a critical part of the agent building system. Messages are like the circulation system of agentic applications. It's how the various elements share information. LangChain defines a few types, and these follow pretty closely with the types or roles that most of our model vendors use.
+
+[00:01:00] There's the system message. This usually describes the basic role of our agent. In our lab, this was something along the lines of, you're a SQL analyst, et cetera, et cetera, and then went on to describe what it would do and what commands it should limit itself to.
+
+There's a human message. This is often the initial request. It can also be necessary feedback or human intervention.
+
+Then there's the AI message. Here, this is shown providing the tool and a tool call. AI messages are any message that the model has produced. The tool responds with a tool message that contains the result of the tool call. And finally, there's an AI message with the last result. It helps to understand that these messages are not passed from node to node, but are stored in a persistent scratch pad that is shared by all of the nodes.
+
+As nodes execute, the results are stored as messages in that scratch pad. Here, the model has not just the tool results, but the whole past history of the transactions thus far. It can reference the original question, [00:02:00] the tool call and observations, and finally can reason about those to produce a result. The final result has the last AI message from the agent and also all of the past message history.
+
+The most important message is the system prompt. It defines how your agent behaves. You provide it when creating the agent, and it should be clear, specific, and complete. As agents have become more capable, system prompts have grown in size and complexity, making careful design increasingly important. When developing your prompt, it's helpful to use evaluations to measure performance and monitoring to track changes over time. LangSmith can help with both of these.
+
+Now let's move on to the lab. Alright. Let's learn more about messages.
+
+Messages are the fundamental unit of context for models in LangChain.
+
+They represent the inputs and outputs of models, carrying both the content and metadata needed to represent the state of a conversation when interacting with an LLM. Messages in particular are very helpful in LangChain because they are standardized across [00:03:00] providers, which allows developers to build applications with a variety of models and providers without changing code.
+
+First, let's look at human and AI messages. Alright, so we are importing our agent builder from langchain.agents, and then langchain_core contains a messages directory where we can import HumanMessage.
+
+We define a simple agent. With the prompt, you're a full stack comedian. We then invoke our agent with a human message printing out the result of that indication. We see, Doing great, thanks. I'm fueled by coffee and clean code. Front end is beaming, backend humming, and my cache is freshly warmed.
+
+So clearly our agent is very much leaning into the full stack comedian behavior we instructed it to follow. We can see that the most recent message is an AI message, which is what we'd expect, the message from the model. And then we can also print out the content of the full message history, which we're accessing in result messages key and we see our human message, [00:04:00] then the AI message after that.
+
+LangChain offers a variety of formats in which developers can represent messages. There are situations where the LangChain can infer the roll from the context, and a simple string might be simple enough to create a message. In this case, this string is converted into a system message under the hood.
+
+Similarly, when we invoke the agent with a string, this is converted into a human message under the hood. I have to say, these agents are quite, quite creative sometimes. Another way that we can represent messages is as dictionaries. So in this case, we are explicitly invoking the agent with a human message.
+
+So we see a role as user and the content of our message follows. Another, uh, quite creative poem here. There are multiple roles that messages can take on. So we've seen a system message, a user message, and then a message with a role of assistant is, uh, like an AI message.
+
+Alright, let's create a tool so [00:05:00] that our agent can create some tool messages. Specifically when an agent calls tools, after those tools are invoked, we get a tool message response. So let's take a look at this tool called check_haiku_lines. Looks like it checks the number of lines in the incoming text and prints out the number of lines in the haiku.
+
+If the number of lines is not equal to three, as haikus require, we return an incorrect message and otherwise we return a correct message. So here we create our agent, which in this case is a sports poet, and then we invoke it, asking it to write us a poem, and we can see looks like output from that validation tool call.
+
+Checking our haiku, confirming that it has three lines and showing us this lovely poem. We can see that the content of the last message is those three lines, and then we can also see that the total length of our messages is four. Let's take a closer look at those messages. So if we iterate over all of the messages in the result, [00:06:00] and we pretty print them for convenience, we can see our initial human message asking us to write a poem, then a tool call to the check haiku lines.
+
+With the haiku as the text argument, then we see that familiar response and the final AI message with that Haiku.
+
+LangChain messages have lots of helpful information. Above, we've been using pretty print for convenience, but let's take a deeper dive into all of the information that's available on messages.
+
+So if we look at our result list, we see a list of messages, we've got a human message, then our AI message, tool message, then a final AI message. Let's take a look at just that last AI message. This has lots of information. For example, we see content, which is that main haiku string usage metadata, which includes input and output, token details, plus cache information for [00:07:00] tokens,
+
+and differentiation based on reasoning and audio. We can also access response metadata, which has helpful information like token usage, model provider, model name.
+
+Alright, try this out on your own now and let's get to learning about streaming.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L3_V1_Streaming.txt
+=============================================
+
+sydney: [00:00:00] Interactive applications like chatbots or customer service agents can suffer from very high latency. To get data to the user as soon as it's available, you can employ streaming. There are several streaming modes frequently used with LangChain agents. Messages and values are two of the most frequently used modes. Messages streams data token by token, as the data is produced by the LLM.
+
+Values returns data after every step. So after the reasoning step and then the tool call step and so on and so forth. You can also stream data from tools that you create and can stream from multiple sources at once. Let's see this in action.
+
+So we import create agent, and we're going to use our full stack comedian example again. So first, we can simply invoke our agent with no streaming using the dot invoke call. So if we do that, we're going to see the final result show up all at once, not streaming [00:01:00] token by token.
+
+So in this case, we ask our agent to tell us a joke, and it says, why do programmers p prefer dark mode? Because light attracts bugs. That's actually funnier than I thought it would be. Alright, now let's jump into streaming. We've used the value streaming mode in our examples thus far. As a reminder, the value streaming mode streams data after each step in the agent loop.
+
+So we expect to see updates after a model call and then after a tool call in a loop. Let's stream from the agent with the prompt. Tell me a dad joke. We can see the human message is sent in the first step. Then we get an AI message back with that same good joke.
+
+Now let's take a look at the messages, streaming mode messages, stream data token by token, reducing in the lowest latency possible for our end user. This is perfect for interactive applications like chatbots when you want to see the agent making progress. [00:02:00] So here we're going to invoke our agent with the stream command and we are asking it to write us a friendly poem.
+
+So let's watch those tokens come in second by second.
+
+Alright, looks like our poem's coming through. The messages stream mode is probably familiar to folks who have used tools like Chat GPT, or Claude to have conversations. One of the coolest things about LangChain is that you can stream from tools too. Let's use the custom stream mode to stream from a get_weather tool.
+
+So here we acquire our stream writer and then we can stream arbitrary data. So here we are simulating, looking up and acquiring weather data for a given city and then returning the result here. We create our basic weather agent, A GPT five mini, and then we stream the result to the question, what is the weather in SF. Here we're going to stream with both the values and custom modes.
+
+So we should expect [00:03:00] updates after each agent step, and then also that custom stream coming from the stream writer up here.
+
+Alright, so we see our initial human message coming in. Then looks like we've got our custom updates here, and then more updates to the general messages list from our values stream mode. Note, when we stream with two stream modes here, values in custom, we see two polls emitted with first the stream mode and then the content of that stream.
+
+So values and then our messages data, and then custom and our custom stream data here. We can also try this out just with our custom mode. Alright? Try some different modes on your own with different queries. Next up, let's learn more about tools.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L4_V1_Tools.txt
+=============================================
+
+sydney: [00:00:00] Alright, let's learn more about tools. Tools provide the action part of a ReAct agent. Their results are observations. You can define tools yourself or use existing libraries of tools. Here's a quick example of a multiply tool that multiplies two numbers A and B and returns the results. The LLM uses the description of a tool to decide when to use that tool and the description of the tool's arguments to determine the contents of the tool call.
+
+The function itself is executed by the tool node. 
+
+Tools allow agents to act in the real world. Careful descriptions can help your agent discover how to use your tools and how to call them effectively. LangChain supports many tool formats and tool sets. Here we'll cover some common cases, but check out our docs for more information.
+
+In this basic example, we define a real number calculator that performs basic [00:01:00] arithmetic operations on real numbers. The operations include addition, subtraction, multiplication, and division. In this example, the doc string listed here and inferred argument types inferred from the signature of the function are used by the LLM to determine when and how to call the tool.
+
+Let's look at an example. First, we import the create agent primitive and construct our mathematician agent. Next, we invoke our agent with a math problem. We can see the agent invokes the calculator tool and then produces the result.
+
+*We can check the metadata in LangSmith observability to see this.* Alright, let's check out this trace. So we can see the real number calculator was called. Let's check out the metadata tab to learn more.
+
+So our function description here was inferred from the doc string, and we [00:02:00] also see our real number calculator inferred from the name of the function. We also see the parameters with their types inferred from the signature. So A and B are of type number, then the operation was any of these values.
+
+We can also see that our real number calculator tool was called with these arguments.
+
+The tool description can have a big impact. This may not invoke your calculator tool because the inputs in this case are integers. So we see before invoking calculator tool. In this case, looks like the LLM is just doing the math itself without the calculator tool that we've provided.
+
+This example uses two real numbers. But also fails to invoke our real number calculator. Let's add a more detailed description to improve this behavior. While a basic description is often sufficient, LangChain has support for enhanced descriptions. The example [00:03:00] below uses one method. Let's add a more detailed description.
+
+Here we have our real number calculator tool. We've given LangChain some additional instructions on how to parse the tool information. First of all, we've overridden the name of the tool to just be simply calculator. Secondly, we've added this Parse Doc string equals true argument, which means we're going to parse the Google style argument descriptions from the doc string and attach them to the metadata passed to the LLM describing the tool structure.
+
+Finally, we've added a description argument which overrides the description parsed from the doc stream. Also, we've asked it now to use this tool whenever you have operations on any numbers, even if they're integers. In this case, we create our agent, then invoke it with that same question, and we see in this case, the calculator tool is invoked.
+
+Now we're going to go back here. Let's check our trace to see the tool [00:04:00] description. Alright, let's take a look at this second trace. Here we can see the calculator tool was called with these arguments as expected. And let's take a look at the tool metadata.
+
+In this case, the description was as we specified in the tool decorator, the name of the tool is calculator, also specified in the tool decorator. Finally, the parameter descriptions were inferred from the doc string and the types from the signature. Alright, and lastly, now we see if we invoke our agent with our three times four question.
+
+We now invoke the calculator tool for that calculation and get the correct result. Alright, feel free to try out your own tools here. Next we're going to learn about tool calling with MCP.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L5_V1_Tools_w_MCP.txt
+=============================================
+
+sydney: [00:00:00] MCP or Model Context Protocol creates an open standard interface between tools and other applications. The basic operation is similar to the standard tool flow in LangChain. The model is provided with a tool description as before, but now it's done via signaling with the MCP server to get the descriptions. And rather than executing the tool in the tool node, execution takes place on the MCP server when requested by the agent.
+
+Alright, let's check out MCP in the lab. The Model Context Protocol provides a standardized way to connect AI agents to external tools and data sources. Let's connect to an MCP server using LangChain MCP adapters. First, we import the multi-server MCP client from LangChain MCP adapters.
+
+We then establish our client with a time server. He uses standard IO for transport and connects to this open MCP time server. [00:01:00] We then load our MCP tools, which we can see we have five tools available, all related to time and time operations. And then we're going to create an agent with those MCP tools. We create our agent passing in the MCP tools, and now we can ask about the current time in San Francisco.
+
+So we call our agent with ainvoke. We use Async here because we're communicating with the server and we ask what's the current time? Alright, we've loaded five MCP tools. Add time, compare time, convert time zone, current time, and relative time. We're now going to create an agent with those MCP provided time tools.
+
+Finally, we're going to ask about the current time in San Francisco. We see our human message. Then a tool call to the current time tool using a time zone America, Los Angeles. I presume, inferred from our San Francisco inquiry and a format. Then we get the [00:02:00] current time result and our model formats that quite nicely into 1225 Pacific time on October 8th.
+
+Next up, we're going to learn about memory for agents.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L6_V1_Memory.txt
+=============================================
+
+Speaker: [00:00:00] You may have noticed when using the agent, that agent did not remember past requests. We can fix this by adding memory to our system, which is built in to LangChain agents under the hood via LangGraph. Memory will persist the messages and state between calls to the agent. Let's take a couple minutes to talk about runtime context as well, which we'll be using in our memory lab.
+
+LangChain's create agent runs on LangGraph's runtime under the hood. Ling. LangGraph exposes a runtime object with the following information. Context, which is static information like user id, database connections, or other dependencies that you want to inject for agent indication. The runtime also has a store, which is a base store instance that can be used for long-term memory.
+
+Today we'll cover short-term memory via checkpointing, but this is another great tool for long running conversations. Finally, the runtime object exposes that stream writer that we've seen in the [00:01:00] custom streaming mode lesson. You can access runtime information in tools as well as via custom agent middleware.
+
+In our memory example, we'll be using runtime to inject our database dependency. Let's review how to access runtime context. First, you specify a context schema. This defines the structure of the context stored in the agent runtime. Next, you provide the schema to the agent. In a tool call, you can use the get runtime function to get that context and access, in this case, the database. 
+
+Finally, when you invoke the agent, you should provide the database or other relevant context in the context argument. This is a general mechanism that can be used to pass runtime static information to tools, prompts, and more. Alright, with that, let's dig into our memory lab. 
+
+So memory is very important for agents, especially agents that engage in long running conversations that might be interrupted, that might be paused. You [00:02:00] want your agents to remember previous things about conversation state so that you can have productive interactions. So the way that we support memory in LangChain, memory can be either short-term or long-term.
+
+We're going to talk about short-term memory today, which takes the form of persisting messages or agent state between invocations of the agent. We're using a familiar setup here, connecting to our Chinook database and specifying this runtime context with our database instance. We define our familiar execute SQL tool, which accesses our database and runs queries against it, and catches any errors.
+
+We define a system prompt. Noting again that if the tool returns an error, that we want to revise the SQL query. Let's also remember that our agent doesn't have any inherent knowledge of the database schema based on the system prompt alone. So it will need to discover the schema as it goes. Alrighty.
+
+Here we create our agent. We're using GPT five with our execute SQL tool and prompt and our runtime [00:03:00] context. Let's execute our first query. We say, this is Frank Harris. What was the total on my last invoice?
+
+The results are as follows, we see the first human message then as expected an execute SQL tool call that tells us more about the invoice tables that we might want to query. We see another execute SQL tool call. Here's that result. And then we see the most recent invoice totaled 5 94 for Frank Harris.
+
+Alright, let's remember we haven't yet enabled short-term memory for our agent. Let's see what happens with repeated queries. So first we ask, this is Frank Harris. What was the total on my last invoice? We see this interaction play out with two execute SQL tool calls and a final result that Frank Harris' last invoice was a whopping total of $5 and 94 cents.
+
+Now let's ask a follow-up question. What were the titles? I think it's [00:04:00] implied that that's for that invoice. We invoke the agent, and the agent gets pretty darn confused. It doesn't really know what we're asking here. Now let's solve this problem by adding short-term memory to our agent. So that it can remember conversation history across invocations.
+
+Alright, so we're going to import from LangGraph checkpoint memory, import in memory saver. That's going to help us add checkpointing, which is a form of short-term memory to our agent. There's one important thing to note here. Now, when we invoke our agent, we pass in this config parameter, thread id. This ensures that we can keep track of state on a given thread.
+
+A thread is kind of like a conversation. So we invoke our agent with our first question, and we see the same expected result, invoice 3 74 had a total of 5 94. Now let's look at our follow-up questions. We ask what were the titles? Remember we're doing this on that first [00:05:00] conversation thread and we see remarkably that the agent remembers the previous conversation.
+
+So we see an execute SQL tool call, and then, we see the titles on that given invoice. Plus we have a nice summary from our final AI message. Memory is quite essential when building agents try out your own queries with built-in memory here. Alright, next up we're going to look at structured output.
+
+
+
+=============================================
+File: LCA_LC_Essentials_Python_M1_L7_V1_StructuredOutput.txt
+=============================================
+
+Speaker: [00:00:00] One powerful feature of LangChain's built-in agent is its ability to produce structured output. If agents are going to work with existing computer systems, it's essential that they can produce data in defined formats. Let's see how this is done in the lab. Alright. For this lab we'll be experimenting with how agents can generate structured output.
+
+For this specific case, we would like our agent to generate structured contact information from a recorded conversation. So we create a simple agent with a response format specified as our contact info TypedDict. We have simumilated recorded conversation with contact information for John Doe embedded in the text.
+
+Let's invoke our agent and see that the structured response attached to the final result matches the structure of the contact info TypedDict we've defined above. In Python, agents support multiple data types for their structured output types. This includes Pydantic base [00:01:00] models, TypedDicts, data classes, and raw JSON schema dictionaries.
+
+Let's look at another example here. This time we define contact info as a Pydantic base model, create our agent and invoke it with the same prompt. And we see that our structured response in this case actually takes the form of a contact info instance with validated name, email, and phone number. Next up we're gonna jump into dynamically changing prompts.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L8_V1_Dynamic_Prompt.txt
+=============================================
+
+Speaker: [00:00:00] Alright, congratulations. At this point, you have learned a lot about the most basic features of an agent, and an agent of this type is very capable of solving many problems. However, if you discovered that the out of the box create agent doesn't satisfy your needs, it's really easy to customize. We're going to talk about customization via middleware, dynamic prompts and human in the loop. 
+
+Middleware lets you insert codes specific to your agent at key points in the react loop. LangChain offers two main types of hooks. Node hooks, which are shown in purple, and interceptor hooks, which are shown wrapping nodes in white. Common use cases for these hooks includes summarization, guardrails, dynamic prompts, and tool retries. 
+
+In an upcoming lab, you'll see how you can use model call wrappers to dynamically choose prompts, and you'll also see how you can use the after model hook to add human in the loop or guardrails to an agentic flow. 
+
+Let's look at dynamic prompt selection. As the scope and duration of tasks and agents can [00:01:00] handle increases, the prompt must expand to cover all the phases, steps, and contingencies of a task.
+
+You can address this with dynamic prompting. Prompts can be selected on the fly using runtime context or the agent's current state. Let's see this in action. Alright, let's take a look at dynamic prompting. We connect to our familiar Chinook database and define a runtime context. This time with this extra is_employee flag.
+
+We define our execute SQL tool and this time we're defining a system prompt template. In this case, it's the same as our previous system prompts with this one addition, table limits. We are going to populate table access limits based on that is employee flag from our runtime context. Alright, let's define our dynamic system prompt function.
+
+In this case, if the user of our application is not an [00:02:00] employee, we want to add some table limits. Specifically, we're restricting access to these tables. If the user is an employee, we don't specify any table limits. Then this function returns the system prompt template formatted with said table limits.
+
+Note this decorator turns this function into dynamic prompt middleware. So down here, when we use create agent to build our agent, we can pass that dynamic system prompt function right into the middleware argument. Everything else is basically the same. Here we define our model, tools and that runtime context schema.
+
+Let's get started with this first question. What is the most costly purchase by Frank Harris? In this case, we invoke our agent with the is_employee flag set to false. Note, we see that human message. Then the model returns with a message saying that it can't access the tables it needs to answer our question.[00:03:00] 
+
+Let's try this again. With different permission access. We still ask the same question this time with the is_employee flag set to true. Check this out. Our model answers our question for us. So we have our human message upfront, then it looks like a series of two execute SQL tool calls and responses. And then our final message tells us that the most expensive purchase by Frank Harris was 1386 all the way back in 2010.
+
+Great. Let's get started with our last lesson, human in the loop.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L9_V1_HITL.txt
+=============================================
+
+sydney: [00:00:00] It's often the case that agents will need human intervention to resolve situations. This can be done via human in the loop. When defining an agent, you can specify which tool calls you'd like human feedback on. When one of those tools is called an interrupt is raised, asking for a human response. You can set up various allowed responses such as approvals, rejections, and even allowing edits.
+
+Let's jump into the lab and try this out. Welcome to your final lab, human in the loop with middleware. First, we connect to the familiar Chinook database, define our runtime context and our execute SQL tool. We define our familiar system prompt here. Then we use the Create Agent primitive to create an agent with human in the Loop middleware.
+
+This middleware allows you to specify certain tools that you'd like to interrupt on. In this case, our Execute SQL tool, and you [00:01:00] can specify a set of allowed decisions. In this case, we want our human in the loop to be able to approve or reject execute SQL tool calls. In other cases, you can also allow edits.
+
+We're going to ask the question, what are the names of all the employees? Note, we're doing this on a thread so that we can keep track of checkpoints, when the loop is interrupted. We invoke the agent with our question and we check for this interrupt key in the result. Whenever there's an interrupt key, we can resume with certain decisions.
+
+So for this first case, we're going to reject the tool call with the message that the database is offline, as our reasoning. Let's take a look at what this output looks like. We see an interrupt. Tool execution requires approval. Then we see the printed response from the model. Looks like the database is offline. Please try again later. That's the content of the last AI message.[00:02:00] 
+
+Let's try this again. This time we're going to approve all of the incoming tool calls.
+
+With the same setup, checking for that interrupt key, we see the result. First, we see an interrupt. Tool execution requires approval. And then we see another one of those.
+
+Now let's see what this looks like in the message history. First, we have our human message. Then it looks like two execute SQL tool calls, which makes sense given the two interrupts above, and then the final result. Here we go. Looks like the model is summarizing this for us in a nice way and even asking if we want to get more information.
+
+Congratulations on finishing your last lab. Now let's wrap up this course.
+
+
+
+=============================================
+File: LCA_LCEssentials_Python_M1_L10_V1_Conclusion.txt
+=============================================
+
+sydney: [00:00:00] Congratulations. You are now ready to take these LangChain Essentials and build your own applications. You learned to build and invoke an agent with the Create Agent Primitive, and use it to talk to a SQL database. You're familiar with messages and how they're used to communicate with system elements. You've used streaming for low latency, built tools and communicated with MCP servers.
+
+You've learned about middleware and used it to extend your agent. Maybe most importantly, you've learned that building a powerful agent is easier than ever with Create Agent. There's a copy of the SQL Agent with some of the features you added available in the debugger. You can check that out.
+
+If you wanna learn more, there are great docs and references listed in the resources page. I'm really looking forward to seeing what you build.
+
+
+
