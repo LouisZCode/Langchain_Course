@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from langchain.agents import create_agent
 from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage
 import time
 
 load_dotenv()
@@ -27,7 +28,7 @@ time.sleep(1)
 
 #Function to show the shopping list
 @tool(
-    "see shopping list",
+    "see_shopping_list",
     parse_docstring=True,
     description="shows the shopping list databse"
 )
@@ -56,15 +57,20 @@ def show_shopping_list():
 
 agent = create_agent(
     model="anthropic:claude-haiku-4-5",
-    tools=[],
+    tools=[show_shopping_list],
     system_prompt="You are a shopping assistant that will help the user with their shopping needs. Your task is to use the tools you have access to, to help the user. If you dont have a tool for that exact task, you let the user know instead of trying to do the task.You do not help with anything else, your complete focus is on the shopping assisting and the use of the tools."
 )
 
 #The format of the messages so they are "pretty_printed"
 
-result = agent.invoke({"messages" : "Hello! what can you do?"})
+message = HumanMessage(content="what do I have in the shopping list?")
+
+result = agent.invoke({"messages" : message})
+#print(result)
+#time.sleep(2)
 for i, msg in enumerate(result["messages"]):
     msg.pretty_print()
+    time.sleep(.5)
     #print(msg)
 
 
