@@ -22,6 +22,6 @@ while True:
         {"messages" : [message]},
         {"configurable": {"thread_id": "1"}}
         )
-        
-    for i, msg in enumerate(result["messages"]):
-        msg.pretty_print()
+    
+    #We only print the last message:
+    result["messages"][-1].pretty_print()

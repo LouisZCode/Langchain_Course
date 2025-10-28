@@ -5,9 +5,13 @@ import os
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
 import time
 from datetime import datetime
 
+
+#TODO: Add streaming so it looks nicer, stream also the tool message
+#TODO: Add Memory, so you can do different tasks in the same call. Add a while loop for this
 
 load_dotenv()
 
@@ -103,9 +107,6 @@ def delete_item(item_name : str):
         return(f"the {item_name} has been deleted succesfully form the database")
 
 
-#whats the name of the tool(parameter)
-#whats the format so the google_way is correct and not error
-
 
 #Function to calculate budget? Question: how do we get the unit price of the items?
 
@@ -117,20 +118,20 @@ def delete_item(item_name : str):
 agent = create_agent(
     model="anthropic:claude-haiku-4-5",
     tools=[show_shopping_list, add_item, delete_item],
-    system_prompt="You are a shopping assistant that will help the user with their shopping needs. Your task is to use the tools you have access to, to help the user. If you dont have a tool for that exact task, you let the user know instead of trying to do the task.You do not help with anything else, your complete focus is on the shopping assisting and the use of the tools."
+    system_prompt="You are a shopping assistant that will help the user with their shopping needs. Your task is to use the tools you have access to, to help the user. If you dont have a tool for that exact task, you let the user know instead of trying to do the task.You do not help with anything else, your complete focus is on the shopping assisting and the use of the tools.",
+    checkpointer=InMemorySaver()
 )
 
 #The format of the messages so they are "pretty_printed"
+while True:
 
-message = HumanMessage(content="Can you delete the computer from the shopping list please?")
+    human_message = input("\nYour message to the Agent:\n")
 
-result = agent.invoke({"messages" : message})
-#print(result)
-#time.sleep(2)
-for i, msg in enumerate(result["messages"]):
-    msg.pretty_print()
-    time.sleep(.5)
-    #print(msg)
+    message = HumanMessage(content=human_message)
+
+    result = agent.invoke({"messages" : message}, {"configurable" : {"thread_id": "1"}})
+    #We print only the last one.
+    result["messages"][-1].pretty_print()
 
 
-#Once it iw working with tools and memory, we implement Gradio, which sounds like it is going to change the procedural formatting ofthe code
+#Once it is working with tools and memory, we implement Gradio, which sounds like it is going to change the procedural formatting ofthe code
