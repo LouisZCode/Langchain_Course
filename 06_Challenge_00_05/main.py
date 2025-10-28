@@ -1,3 +1,4 @@
+from hmac import new
 from dotenv import load_dotenv
 import pandas as pd
 import os
@@ -5,6 +6,8 @@ from langchain.agents import create_agent
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage
 import time
+from datetime import datetime
+
 
 load_dotenv()
 
@@ -44,6 +47,36 @@ def show_shopping_list():
     df = pd.read_csv(ITEMS_DATABASE)
     return df
 
+
+@tool(
+    "add_item_to_database",
+    parse_docstring=True,
+    description="Add a new item to the database as a new row"
+)
+def add_item(item_name: str, quantity: int, category:str):
+    """this tool adds an item to the shopping list database
+    
+    Args:
+        item_name (str): The name of the item.
+        quantity (int): a float or integer as the quantity of the item.
+        category (str): the category this item belongs to.
+
+    Return:
+        The new row information wwith the item, quantity, category and date created
+
+    Raises:
+        let the user know if one of the arguments is not there
+    
+    """
+    date = datetime.now()
+    df = pd.read_csv(ITEMS_DATABASE)
+    new_row = pd.DataFrame([{"item" : item_name,  "quantity": quantity, "category": category, "added_date": date}])
+    df = pd.concat([new_row, df], ignore_index=True)
+    df.to_csv(ITEMS_DATABASE, index=False)
+    return(f"successfully added this new rox: {new_row}")
+
+
+
 #whats the name of the tool(parameter)
 #whats the format so the google_way is correct and not error
 
@@ -57,13 +90,13 @@ def show_shopping_list():
 
 agent = create_agent(
     model="anthropic:claude-haiku-4-5",
-    tools=[show_shopping_list],
+    tools=[show_shopping_list, add_item],
     system_prompt="You are a shopping assistant that will help the user with their shopping needs. Your task is to use the tools you have access to, to help the user. If you dont have a tool for that exact task, you let the user know instead of trying to do the task.You do not help with anything else, your complete focus is on the shopping assisting and the use of the tools."
 )
 
 #The format of the messages so they are "pretty_printed"
 
-message = HumanMessage(content="what do I have in the shopping list?")
+message = HumanMessage(content="Can you add 1 computer in the category electreonics to the shopping list please?")
 
 result = agent.invoke({"messages" : message})
 #print(result)
