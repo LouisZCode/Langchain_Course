@@ -75,6 +75,32 @@ def add_item(item_name: str, quantity: int, category:str):
     df.to_csv(ITEMS_DATABASE, index=False)
     return(f"successfully added this new rox: {new_row}")
 
+@tool(
+    "delete_item_from_list",
+    parse_docstring=True,
+    description="Deletes an item form the list"
+)
+def delete_item(item_name : str):
+    """Deletes a row with the name of the item
+    
+    Args:
+        item_name (str): the name of the item to delete with the whole row it is in
+
+    returns:
+        a confirmation that the item was deleter
+    
+    Raises:
+        Lets the user know if the item requested to be deleted, doe snot exist.
+    """
+    df = pd.read_csv(ITEMS_DATABASE)
+    print(item_name)
+    filtered_df = df[df["item"] == item_name]
+    if filtered_df.empty:
+        return f"there is not an item with the name: {item_name}. Suggest the user to request to see the database"
+    else:
+        df = df[df["item"] != item_name]
+        df.to_csv(ITEMS_DATABASE, index=False)
+        return(f"the {item_name} has been deleted succesfully form the database")
 
 
 #whats the name of the tool(parameter)
@@ -90,13 +116,13 @@ def add_item(item_name: str, quantity: int, category:str):
 
 agent = create_agent(
     model="anthropic:claude-haiku-4-5",
-    tools=[show_shopping_list, add_item],
+    tools=[show_shopping_list, add_item, delete_item],
     system_prompt="You are a shopping assistant that will help the user with their shopping needs. Your task is to use the tools you have access to, to help the user. If you dont have a tool for that exact task, you let the user know instead of trying to do the task.You do not help with anything else, your complete focus is on the shopping assisting and the use of the tools."
 )
 
 #The format of the messages so they are "pretty_printed"
 
-message = HumanMessage(content="Can you add 1 computer in the category electreonics to the shopping list please?")
+message = HumanMessage(content="Can you delete the computer from the shopping list please?")
 
 result = agent.invoke({"messages" : message})
 #print(result)
