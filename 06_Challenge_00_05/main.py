@@ -114,10 +114,14 @@ agent = create_agent(
 
 
 def respond(message, history):
+    """
+    message: current user input (str)
+    history: Gradio's display history (not used for agent memory)
+    """
     #history starts as   []
     messages_to_send = history + [{"role": "user", "content": message}]
     
-    response = agent.invoke({"messages" : messages_to_send}, {"configurable" : {"thread_id": "20"}})
+    response = agent.invoke({"messages" : messages_to_send}, {"configurable" : {"thread_id": "20"}})  #
 
     ai_message = response['messages'][-1].content
 
