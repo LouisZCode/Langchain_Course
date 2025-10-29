@@ -15,7 +15,6 @@ load_dotenv()
 
 ITEMS_DATABASE = "itemsDB.csv"
 
-
 #We check if the database does not exists:
 if not os.path.exists(ITEMS_DATABASE):
     print("Database does not exists, creating one:")
@@ -114,18 +113,17 @@ agent = create_agent(
 )
 
 
-
-def clean_response():
-    pass
-
-
 def respond(message, history):
+    #history starts as   []
+    messages_to_send = history + [{"role": "user", "content": message}]
     
-    response = agent.invoke({"messages" : message}, {"configurable" : {"thread_id": "20"}})
-    return response
+    response = agent.invoke({"messages" : messages_to_send}, {"configurable" : {"thread_id": "20"}})
 
+    ai_message = response['messages'][-1].content
 
+    return ai_message
 
 demo = gr.ChatInterface(fn=respond, type="messages")
+#The text box inside this ChatInterface, will send a  "message"  as a str variable to the function
 
 demo.launch()
