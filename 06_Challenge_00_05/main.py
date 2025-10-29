@@ -1,4 +1,4 @@
-from hmac import new
+
 from dotenv import load_dotenv
 import pandas as pd
 import os
@@ -8,10 +8,8 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 import time
 from datetime import datetime
+import gradio as gr
 
-
-#TODO: Add streaming so it looks nicer, stream also the tool message
-#TODO: Add Memory, so you can do different tasks in the same call. Add a while loop for this
 
 load_dotenv()
 
@@ -108,13 +106,6 @@ def delete_item(item_name : str):
 
 
 
-#Function to calculate budget? Question: how do we get the unit price of the items?
-
-
-#Search and connect to 1 MCP server... random but lets do it.
-#Idea: Mcp that browses online for prices of X Item
-
-
 agent = create_agent(
     model="anthropic:claude-haiku-4-5",
     tools=[show_shopping_list, add_item, delete_item],
@@ -122,16 +113,19 @@ agent = create_agent(
     checkpointer=InMemorySaver()
 )
 
-#The format of the messages so they are "pretty_printed"
-while True:
-
-    human_message = input("\nYour message to the Agent:\n")
-
-    message = HumanMessage(content=human_message)
-
-    result = agent.invoke({"messages" : message}, {"configurable" : {"thread_id": "1"}})
-    #We print only the last one.
-    result["messages"][-1].pretty_print()
 
 
-#Once it is working with tools and memory, we implement Gradio, which sounds like it is going to change the procedural formatting ofthe code
+def clean_response():
+    pass
+
+
+def respond(message, history):
+    
+    response = agent.invoke({"messages" : message}, {"configurable" : {"thread_id": "20"}})
+    return response
+
+
+
+demo = gr.ChatInterface(fn=respond, type="messages")
+
+demo.launch()
