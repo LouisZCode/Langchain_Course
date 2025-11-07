@@ -72,7 +72,7 @@ def read_job_application_database():
         "You can add a new row to the database using this tool"
     )
 )
-def add_job_application(company : str, position:str, status:str, deadline:str, salary:float, notes:int) -> float:
+def add_job_application(company : str, position:str, status:str, deadline:str, salary:float, notes:str) -> float:
     """
     creates a new row in the database with the information given by the user. Needs all parameters to work
 
@@ -94,9 +94,9 @@ def add_job_application(company : str, position:str, status:str, deadline:str, s
     deadline_date = applied_date + timedelta(days=15)
 
     dataframe = pd.read_csv(APPLICATIONS)
-    new_row = pd.DataFrame([{"company": company,  "position": position, "status": "Just Applied", "deadline": deadline_date, "applied_date":applied_date, "salary_range": salary, "notes":notes}])
+    new_row = pd.DataFrame([{"company": company,  "position": position, "status": "Just Applied", "deadline": deadline_date, "applied_date":applied_date, "salary_range": salary, "notes": notes}])
     df = pd.concat([dataframe , new_row], ignore_index=True)
-    df.to_csv()
+    df.to_csv(APPLICATIONS, index=False)
     return f"f'New row createw with the following values:{new_row}"
 
 
