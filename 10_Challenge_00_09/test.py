@@ -1,0 +1,16 @@
+from datetime import datetime, timedelta
+
+print()
+now = datetime.now()
+print(datetime.now())
+print()
+date = now.date()
+print(date)
+print()
+tomorrow = date + timedelta(days=20)
+print(tomorrow)
+print()
+print()
+applied_date = datetime.now().date()
+deadline_date = applied_date + timedelta(days=15)
+print(f"{applied_date=}")
