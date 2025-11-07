@@ -14,8 +14,8 @@ from langchain.tools import tool
 
 APPLICATIONS = "applications.csv"
 
-if os.path.exists(APPLICATIONS):
-    new_datafreame = pd.DataFrame(APPLICATIONS, columns=["company", "position", "status", "deadline", "applied_date", "salary_range", "notes"])
+if not os.path.exists(APPLICATIONS):
+    new_datafreame = pd.DataFrame(columns=["company", "position", "status", "deadline", "applied_date", "salary_range", "notes"])
     new_datafreame.to_csv(APPLICATIONS, index=False)
     #Save the database?
 
@@ -25,7 +25,7 @@ agent = create_agent(
     model="openai:gpt-5-mini"
 )
 
-message = HumanMessage(content="Tell me a dad joke")
+message = HumanMessage(content="Tell me a dad joke related to France")
 
 result = agent.invoke({
     "messages": message
