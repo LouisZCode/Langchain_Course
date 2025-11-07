@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 #from langchain.agents.middleware #how to get the dynamic prompting part!?
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage
 
 import os
 
@@ -21,11 +21,46 @@ if not os.path.exists(APPLICATIONS):
 
 load_dotenv()
 
+
+SYSTEM_PROMPT = """
+You are a professiona job application tracker agent.
+Your job is to help the user follow on his or her job applications, and
+to create cover letters for new applications if requested.
+For that, you have access to different tools, and you always use
+them to get the job done. You tell the user what you did, and only that.
+You do not propose next steps.
+If you dont seem to have access to the tools, you say:
+'Sorry, I dont seem to have access to my tools right now' and no more*
+instead of inventing something.
+You dont propose never next steps, you follow the lead of the user.
+"""
+
+@tool(
+    "read_current_applications",
+    parse_docstring=True,
+    description=(
+        "Read the database with all the job application information"
+    )
+)
+def read_job_application_database():
+    """
+    This tool helps you read the database with the current job application data
+
+    Returns: the dataframe
+    """
+    datafreame = pd.read_csv(APPLICATIONS)
+
+    return datafreame
+
+
+
 agent = create_agent(
-    model="openai:gpt-5-mini"
+    model="openai:gpt-5-mini",
+    tools=[read_job_application_database]
 )
 
-message = HumanMessage(content="Tell me a dad joke related to France")
+message = HumanMessage(content=SYSTEM_PROMPT)
+
 
 result = agent.invoke({
     "messages": message
