@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, dynamic_prompt, ModelRequest
 from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.memory import InMemorySaver
 
 import os
 
@@ -135,10 +136,37 @@ def edit_job_status(new_status : str, company_name : str) -> str:
     else:
         return "This company does not exist in the database"
 
+@tool(
+    "delete_job_application",
+    parse_docstring=True,
+    description=(
+        "used to delete a complete row in the database, erasing the job application"
+    )
+)
+def delete_job_application(company_name : str) -> str:
+    """
+    Description:
+        erases a job application of the database simply by removing the row where the application was saved
+
+    Args:
+        company_name (str): The name of the company where the job application was done.
+
+    Returns:
+        Confirmation or Rejection by Admin of this job application
+
+    Raises:
+        Lets the user know if no application in the requested company exist in the first place
+    """
+
+    company_name = company_name.casefold()
+    df = pd.read_csv(APPLICATIONS)
+    if not df.loc["company" == company_name]:
+        return f"There was no application to the {company_name} made before"
+    else:
+        pass
 
 
 # TODO: Add a delete tool, that will have a HumanInTheLoop to confirm or reject the deletion of the application
-# TODO Add a tool to edit the status of a certain job
 # TODO Add Memory, so we can have various tool calls in the same session.
 
 
@@ -147,14 +175,23 @@ def edit_job_status(new_status : str, company_name : str) -> str:
 agent = create_agent(
     model="openai:gpt-5-mini",
     tools=[read_job_application_database, add_job_application, edit_job_status],
-    middleware=[my_prompt]
+    middleware=[my_prompt,
+    HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
+            "allowed_decisions": ["approve", "reject"],
+            "description": "confirm or reject the permanent deletion of this job application"
+            }
+            }
+        )
+    ],
+    checkpointer=InMemorySaver()
 )
 
 message = HumanMessage(content=SYSTEM_PROMPT)
 
 
 result = agent.invoke({
-    "messages": message
+    "messages": message,
+    "configurable" : {"thread_id" : "01"}
 })
 
 #Make the answers pretty for now
