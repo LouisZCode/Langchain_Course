@@ -2,7 +2,6 @@ from turtle import pd
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, dynamic_prompt, ModelRequest
-#from langchain.agents.middleware #how to get the dynamic prompting part!?
 from langchain_core.messages import HumanMessage
 
 import os
@@ -46,6 +45,8 @@ def my_prompt(request:ModelRequest) -> str:
         current_instructions = human_message
     return (SYSTEM_PROMPT.format(current_instructions = current_instructions))
 
+
+# TODO: Include type hints with Literal for constrained parameters
 
 @tool(
     "read_current_applications",
@@ -94,15 +95,58 @@ def add_job_application(company : str, position:str, status:str, deadline:str, s
     deadline_date = applied_date + timedelta(days=15)
 
     dataframe = pd.read_csv(APPLICATIONS)
-    new_row = pd.DataFrame([{"company": company,  "position": position, "status": "Just Applied", "deadline": deadline_date, "applied_date":applied_date, "salary_range": salary, "notes": notes}])
+    new_row = pd.DataFrame([{"company": company.casefold(),  "position": position, "status": "Just Applied", "deadline": deadline_date, "applied_date":applied_date, "salary_range": salary, "notes": notes}])
     df = pd.concat([dataframe , new_row], ignore_index=True)
     df.to_csv(APPLICATIONS, index=False)
     return f"f'New row createw with the following values:{new_row}"
 
+@tool(
+    "Edit_job_application_status",
+    parse_docstring=True,
+    description=(
+        "edits the status of the Job application on a specific company according to the users request"
+    )
+)
+def edit_job_status(new_status : str, company_name : str) -> str:
+    """
+    Description:
+        Edits the status of a specified job in the database, to the status requested by the user.
+
+    Args:
+        new_status (str): the desired new status of that job application.
+        company_name (str): the name of the company where to update the job application status.
+
+    Returns:
+        The confirmation of the company status that ahs been updated, with the details.
+
+    Raises:
+        If there is no company named like that, lets the user know
+    """
+
+    df = pd.read_csv(APPLICATIONS)
+    #align wthe value to the one the databas would have:
+    company_name = company_name.casefold()
+    #We need to first filter the row, if it exist
+    if company_name in df["company"].values:
+        df.loc[df["company"] == company_name, "status"] = new_status
+        df.to_csv(APPLICATIONS, index=False)
+        return f"The application to the {company_name} has been updated to {new_status}"
+
+    else:
+        return "This company does not exist in the database"
+
+
+
+# TODO: Add a delete tool, that will have a HumanInTheLoop to confirm or reject the deletion of the application
+# TODO Add a tool to edit the status of a certain job
+# TODO Add Memory, so we can have various tool calls in the same session.
+
+
+# TODO Cover Letter generation tool, with a TypedDict
 
 agent = create_agent(
     model="openai:gpt-5-mini",
-    tools=[read_job_application_database, add_job_application],
+    tools=[read_job_application_database, add_job_application, edit_job_status],
     middleware=[my_prompt]
 )
 
