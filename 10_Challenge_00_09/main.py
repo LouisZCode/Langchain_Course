@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
+from typing import TypedDict
 
 import os
 
@@ -25,6 +26,10 @@ if not os.path.exists(APPLICATIONS):
     #Save the database?
 
 load_dotenv()
+
+
+class CoverLetter(TypedDict):
+    company : str
 
 
 SYSTEM_PROMPT = """
@@ -171,15 +176,22 @@ def delete_job_application(company_name : str) -> str:
         return f"the application data for the {company_name} has been permanently deleted" 
 
 
-# TODO: Add a delete tool, that will have a HumanInTheLoop to confirm or reject the deletion of the application
-# TODO Add Memory, so we can have various tool calls in the same session.
-
-
 # TODO Cover Letter generation tool, with a TypedDict
+
+@tool(
+    "cover_letter_writter",
+    parse_docstring=True,
+    description=
+    "Allow you to write a cover letter for the user"
+)
+def cover_letter_writing():
+    pass
+
 
 agent = create_agent(
     model="openai:gpt-5-mini",
     tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application],
+    response_format=CoverLetter,
     middleware=[my_prompt,
     HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
             "allowed_decisions": ["approve", "reject"],
