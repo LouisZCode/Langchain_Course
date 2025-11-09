@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, dynamic_prompt, ModelRequest
 from langchain_core.messages import HumanMessage
+
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.types import Command
+
 
 import os
 
@@ -160,10 +163,12 @@ def delete_job_application(company_name : str) -> str:
 
     company_name = company_name.casefold()
     df = pd.read_csv(APPLICATIONS)
-    if not df.loc["company" == company_name]:
+    if company_name not in df["company"].values:
         return f"There was no application to the {company_name} made before"
     else:
-        pass
+        df = df[df["company"] != company_name]
+        df.to_csv(APPLICATIONS, index=False)
+        return f"the application data for the {company_name} has been permanently deleted" 
 
 
 # TODO: Add a delete tool, that will have a HumanInTheLoop to confirm or reject the deletion of the application
@@ -174,7 +179,7 @@ def delete_job_application(company_name : str) -> str:
 
 agent = create_agent(
     model="openai:gpt-5-mini",
-    tools=[read_job_application_database, add_job_application, edit_job_status],
+    tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application],
     middleware=[my_prompt,
     HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
             "allowed_decisions": ["approve", "reject"],
@@ -189,11 +194,36 @@ agent = create_agent(
 message = HumanMessage(content=SYSTEM_PROMPT)
 
 
-result = agent.invoke({
-    "messages": message,
-    "configurable" : {"thread_id" : "01"}
-})
+result = agent.invoke(
+    {"messages": message},
+    {"configurable" : {"thread_id" : "01"}}
+    )
 
+if "__interrupt__" in result:
+    interrupt_info = result["__interrupt__"]
+    print("⚠️ Approval needed!")
+    print()
+
+    decision = input("Deleting a job application, continue? (yes/no): \n")
+    decision = decision.casefold()
+
+    if decision in ["yes" , "y"]:
+        decision = "approve"
+    elif decision in ["no", "n"]:
+        decision = "reject"
+    else:
+        print("Invalid input, treating as reject")
+        decision = "reject"
+
+
+    result = agent.invoke(
+        Command(resume={"decisions": [{"type": decision}]}),
+        {"configurable" : {"thread_id" : "01"}}
+        )
+
+    print("✅ Action completed!")
+
+else:
 #Make the answers pretty for now
-for i,msg in enumerate(result["messages"]):
-    msg.pretty_print()
+    for i,msg in enumerate(result["messages"]):
+        msg.pretty_print()
