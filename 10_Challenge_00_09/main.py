@@ -174,7 +174,7 @@ def delete_job_application(company_name : str) -> str:
         return f"the application data for the {company_name} has been permanently deleted" 
 
 
-# TODO Cover Letter generation tool, with a TypedDict
+# TODO Fix the READ DATABASE so the LLM can see it all (remove string only)
 
 @tool(
     "cover_letter_writing",
@@ -231,16 +231,16 @@ message = HumanMessage(content=SYSTEM_PROMPT)
 thread_id_state = gr.State("001") 
 
 def respond(message, history, thread_id):
+    # 1. Build the full message list (history + current message)
     messages = history + [{"role": "user", "content": message}]
     
-    response = agent.invoke({"messages": messages}, {"configurable" : {"thread_id" : thread_id}})
-    
-    bot_reply = ChatMessage(
-        role="assistant",
-        content=response['messages'][-1].content
+    # 2. Invoke the agent
+    response = agent.invoke(
+        {"messages": messages}, 
+        {"configurable": {"thread_id": thread_id}}
     )
     
-    return bot_reply
+    return response["messages"][-1].content
 
 demo = gr.ChatInterface(
     fn=respond,
