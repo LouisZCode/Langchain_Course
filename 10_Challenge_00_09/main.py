@@ -7,7 +7,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.types import Command
 
-from typing import TypedDict
+from typing import TypedDict, NotRequired
 
 import os
 
@@ -29,7 +29,11 @@ load_dotenv()
 
 
 class CoverLetter(TypedDict):
-    company : str
+    message : str
+    cover_letter_header : NotRequired[str]
+    cover_letter_body : NotRequired[str]
+    cover_letter_goodbye : NotRequired[str]
+
 
 
 SYSTEM_PROMPT = """
@@ -179,18 +183,44 @@ def delete_job_application(company_name : str) -> str:
 # TODO Cover Letter generation tool, with a TypedDict
 
 @tool(
-    "cover_letter_writter",
+    "cover_letter_writing",
     parse_docstring=True,
     description=
     "Allow you to write a cover letter for the user"
 )
-def cover_letter_writing():
-    pass
+def cover_letter_writing(company_name : str, job_applied : str, header : str, body : str, goodbye : str) -> str:
+    """
+    Description:
+        Creates a cover letter for the user specifically for the company requested and for the job applied to
+
+    Args:
+        company_name (str): The company name.
+        job_applied (str): The job position.
+        header (str): The greeting/header section.
+        body (str): The main body of the letter.
+        goodbye (str): The closing section.
+
+    Returns:
+        A saved cover letter in the system
+
+    Raises:
+        Error if not able to save the text.
+    """
+    # Combine the parts
+    full_letter = f"{header}\n\n{body}\n\n{goodbye}"
+    
+    # Write to file
+    filename = f"Cover_letter_to_{company_name}.txt"
+    with open(filename, mode="w") as cl:
+        cl.write(full_letter)
+        
+    return f"Cover Letter to {company_name} for the {job_applied} role has been created"
+
 
 
 agent = create_agent(
     model="openai:gpt-5-mini",
-    tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application],
+    tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application, cover_letter_writing],
     response_format=CoverLetter,
     middleware=[my_prompt,
     HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
@@ -236,6 +266,6 @@ if "__interrupt__" in result:
     print("✅ Action completed!")
 
 else:
-#Make the answers pretty for now
+    #Make the answers pretty for now
     for i,msg in enumerate(result["messages"]):
         msg.pretty_print()
