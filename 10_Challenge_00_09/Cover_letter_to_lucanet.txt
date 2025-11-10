@@ -1,0 +1,10 @@
+Dear Hiring Manager at lucanet,
+
+I am writing to apply for the Senior Software Engineer position at lucanet. I bring a strong track record of delivering robust, maintainable software and leading engineering efforts from design through production. My experience spans system architecture, backend and API development, and collaborating closely with product and QA teams to deliver high-quality solutions on schedule.
+
+In previous roles I have driven technical initiatives that improved system performance, increased reliability, and reduced operational overhead. I enjoy mentoring teammates, driving code-quality improvements, and introducing pragmatic engineering practices that scale with the team. I am comfortable working in fast-paced environments and take ownership of complex problems until they are resolved.
+
+I am enthusiastic about contributing my engineering experience and collaborative approach to lucanet’s development efforts. Thank you for considering my application.
+
+Sincerely,
+[Your Name]

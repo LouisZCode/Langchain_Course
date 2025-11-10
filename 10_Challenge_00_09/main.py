@@ -1,4 +1,3 @@
-from turtle import pd
 from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import HumanInTheLoopMiddleware, dynamic_prompt, ModelRequest
@@ -50,16 +49,12 @@ You dont propose never next steps, you follow the lead of the user.
 to do now = {current_instructions}
 """
 
-human_message = input("Tell the Agent the first action:\n")
 
 @dynamic_prompt
-def my_prompt(request:ModelRequest) -> str:
-    if human_message:
-        current_instructions = human_message
-    return (SYSTEM_PROMPT.format(current_instructions = current_instructions))
+def my_prompt(request: ModelRequest) -> str:
+    current_instructions = request.messages[-1].content
+    return SYSTEM_PROMPT.format(current_instructions=current_instructions)
 
-
-# TODO: Include type hints with Literal for constrained parameters
 
 @tool(
     "read_current_applications",
@@ -86,7 +81,7 @@ def read_job_application_database():
         "You can add a new row to the database using this tool"
     )
 )
-def add_job_application(company : str, position:str, status:str, deadline:str, salary:float, notes:str) -> float:
+def add_job_application(company : str, position:str, status:str, deadline:str, salary:float, notes:str) -> str:
     """
     creates a new row in the database with the information given by the user. Needs all parameters to work
 
@@ -213,7 +208,7 @@ def cover_letter_writing(company_name : str, job_applied : str, header : str, bo
     filename = f"Cover_letter_to_{company_name}.txt"
     with open(filename, mode="w") as cl:
         cl.write(full_letter)
-        
+
     return f"Cover Letter to {company_name} for the {job_applied} role has been created"
 
 
@@ -235,37 +230,62 @@ agent = create_agent(
 
 message = HumanMessage(content=SYSTEM_PROMPT)
 
+human_message = input("Tell the Agent the first action:\n")
 
 result = agent.invoke(
     {"messages": message},
     {"configurable" : {"thread_id" : "01"}}
-    )
+        )
 
-if "__interrupt__" in result:
-    interrupt_info = result["__interrupt__"]
-    print("⚠️ Approval needed!")
-    print()
+structured = result["structured_response"]
+print(f"\n🤖 Agent:\n{structured['message']}\n")
 
-    decision = input("Deleting a job application, continue? (yes/no): \n")
-    decision = decision.casefold()
+while True:
 
-    if decision in ["yes" , "y"]:
-        decision = "approve"
-    elif decision in ["no", "n"]:
-        decision = "reject"
-    else:
-        print("Invalid input, treating as reject")
-        decision = "reject"
-
+    human_message = input("You:\n")
 
     result = agent.invoke(
-        Command(resume={"decisions": [{"type": decision}]}),
+        {"messages": [{"role": "user", "content": human_message}]},
         {"configurable" : {"thread_id" : "01"}}
         )
 
-    print("✅ Action completed!")
+    if "__interrupt__" in result:
+        interrupt_info = result["__interrupt__"]
+        print("⚠️ Approval needed!")
+        print()
 
-else:
-    #Make the answers pretty for now
-    for i,msg in enumerate(result["messages"]):
-        msg.pretty_print()
+        decision = input("Deleting a job application, continue? (yes/no): \n")
+        decision = decision.casefold()
+
+        if decision in ["yes" , "y"]:
+            decision = "approve"
+        elif decision in ["no", "n"]:
+            decision = "reject"
+        else:
+            print("Invalid input, treating as reject")
+            decision = "reject"
+
+
+        result = agent.invoke(
+            Command(resume={"decisions": [{"type": decision}]}),
+            {"configurable" : {"thread_id" : "01"}}
+            )
+
+        print("✅ Action completed!")
+
+    else:
+        # Show human messages normally
+        for msg in result["messages"]:
+            if msg.type == "human":
+                msg.pretty_print()
+        
+        # Use structured response for AI
+        structured = result["structured_response"]
+        print(f"\n🤖 Agent: {structured['message']}\n")
+        
+        # If cover letter fields exist
+        if structured.get('cover_letter_header'):
+            print("\n📄 Cover Letter Generated:")
+            print(f"{structured['cover_letter_header']}\n")
+            print(f"{structured['cover_letter_body']}\n")
+            print(f"{structured['cover_letter_goodbye']}")
