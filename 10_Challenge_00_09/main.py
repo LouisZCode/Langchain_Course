@@ -230,62 +230,72 @@ agent = create_agent(
 
 message = HumanMessage(content=SYSTEM_PROMPT)
 
-human_message = input("Tell the Agent the first action:\n")
 
-result = agent.invoke(
-    {"messages": message},
+"""result = agent.invoke(
+    {"messages": [{"role": "user", "content": human_message}]},
     {"configurable" : {"thread_id" : "01"}}
-        )
+    )
 
-structured = result["structured_response"]
-print(f"\n🤖 Agent:\n{structured['message']}\n")
+if "__interrupt__" in result:
+    interrupt_info = result["__interrupt__"]
+    print("⚠️ Approval needed!")
+    print()
 
-while True:
+    decision = input("Deleting a job application, continue? (yes/no): \n")
+    decision = decision.casefold()
 
-    human_message = input("You:\n")
+    if decision in ["yes" , "y"]:
+        decision = "approve"
+    elif decision in ["no", "n"]:
+        decision = "reject"
+    else:
+        print("Invalid input, treating as reject")
+        decision = "reject"
+
 
     result = agent.invoke(
-        {"messages": [{"role": "user", "content": human_message}]},
+        Command(resume={"decisions": [{"type": decision}]}),
         {"configurable" : {"thread_id" : "01"}}
         )
 
-    if "__interrupt__" in result:
-        interrupt_info = result["__interrupt__"]
-        print("⚠️ Approval needed!")
-        print()
+    print("✅ Action completed!")
 
-        decision = input("Deleting a job application, continue? (yes/no): \n")
-        decision = decision.casefold()
+else:
+    # Show human messages normally
+    for msg in result["messages"]:
+        if msg.type == "human":
+            msg.pretty_print()
+    
+    # Use structured response for AI
+    structured = result["structured_response"]
+    print(f"\n🤖 Agent: {structured['message']}\n")
+    
+    # If cover letter fields exist
+    if structured.get('cover_letter_header'):
+        print("\n📄 Cover Letter Generated:")
+        print(f"{structured['cover_letter_header']}\n")
+        print(f"{structured['cover_letter_body']}\n")
+        print(f"{structured['cover_letter_goodbye']}")"""
 
-        if decision in ["yes" , "y"]:
-            decision = "approve"
-        elif decision in ["no", "n"]:
-            decision = "reject"
-        else:
-            print("Invalid input, treating as reject")
-            decision = "reject"
 
 
-        result = agent.invoke(
-            Command(resume={"decisions": [{"type": decision}]}),
-            {"configurable" : {"thread_id" : "01"}}
-            )
 
-        print("✅ Action completed!")
+def respond(message, history):
+    # 1. Build message list
+    messages = history + [{"role": "user", "content": message}]
+    
+    # 2. Invoke your agent (with tools!)
+    response = agent.invoke({"messages": messages}, {"configurable" : {"thread_id" : "001"}})
+    
+    # 3. Extract bot's response
+    bot_message = response['messages'][-1].content
+    
+    # 4. Return what will be displayed in the bubble..
+    return bot_message
 
-    else:
-        # Show human messages normally
-        for msg in result["messages"]:
-            if msg.type == "human":
-                msg.pretty_print()
-        
-        # Use structured response for AI
-        structured = result["structured_response"]
-        print(f"\n🤖 Agent: {structured['message']}\n")
-        
-        # If cover letter fields exist
-        if structured.get('cover_letter_header'):
-            print("\n📄 Cover Letter Generated:")
-            print(f"{structured['cover_letter_header']}\n")
-            print(f"{structured['cover_letter_body']}\n")
-            print(f"{structured['cover_letter_goodbye']}")
+demo = gr.ChatInterface(
+    fn=respond,
+    type="messages",
+)
+
+demo.launch()
