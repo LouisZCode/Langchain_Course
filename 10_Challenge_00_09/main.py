@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import gradio as gr
+from gradio import ChatMessage
 
 from langchain.tools import tool
 
@@ -27,24 +28,22 @@ if not os.path.exists(APPLICATIONS):
 load_dotenv()
 
 
-class CoverLetter(TypedDict):
-    message : str
-    cover_letter_header : NotRequired[str]
-    cover_letter_body : NotRequired[str]
-    cover_letter_goodbye : NotRequired[str]
-
-
 
 SYSTEM_PROMPT = """
 You are a professiona job application tracker agent.
 Your job is to help the user follow on his or her job applications, and
 to create cover letters for new applications if requested.
-For that, you have access to different tools, and you always use
-them to get the job done. You tell the user what you did, and only that.
+For that, you have access to different tools, and you always first check if you need to use
+them to get the job done. If the tool was actually used, you tell the user what you did, and only that.
+If no tool was used, let the user know, and answer the question.
 You do not propose next steps.
 If you dont seem to have access to the tools, you say:
 'Sorry, I dont seem to have access to my tools right now' and no more*
 instead of inventing something.
+
+IMPORTANT: If the user just casually chat, you dont need to use the tools, you can normally 
+answer as the extremely helpful job application tracker you are.
+
 You dont propose never next steps, you follow the lead of the user.
 to do now = {current_instructions}
 """
@@ -69,9 +68,9 @@ def read_job_application_database():
 
     Returns: the dataframe
     """
-    datafreame = pd.read_csv(APPLICATIONS)
+    dataframe = pd.read_csv(APPLICATIONS)
 
-    return datafreame
+    return dataframe
 
 
 @tool(
@@ -216,7 +215,6 @@ def cover_letter_writing(company_name : str, job_applied : str, header : str, bo
 agent = create_agent(
     model="openai:gpt-5-mini",
     tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application, cover_letter_writing],
-    response_format=CoverLetter,
     middleware=[my_prompt,
     HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
             "allowed_decisions": ["approve", "reject"],
@@ -230,72 +228,24 @@ agent = create_agent(
 
 message = HumanMessage(content=SYSTEM_PROMPT)
 
+thread_id_state = gr.State("001") 
 
-"""result = agent.invoke(
-    {"messages": [{"role": "user", "content": human_message}]},
-    {"configurable" : {"thread_id" : "01"}}
-    )
-
-if "__interrupt__" in result:
-    interrupt_info = result["__interrupt__"]
-    print("⚠️ Approval needed!")
-    print()
-
-    decision = input("Deleting a job application, continue? (yes/no): \n")
-    decision = decision.casefold()
-
-    if decision in ["yes" , "y"]:
-        decision = "approve"
-    elif decision in ["no", "n"]:
-        decision = "reject"
-    else:
-        print("Invalid input, treating as reject")
-        decision = "reject"
-
-
-    result = agent.invoke(
-        Command(resume={"decisions": [{"type": decision}]}),
-        {"configurable" : {"thread_id" : "01"}}
-        )
-
-    print("✅ Action completed!")
-
-else:
-    # Show human messages normally
-    for msg in result["messages"]:
-        if msg.type == "human":
-            msg.pretty_print()
-    
-    # Use structured response for AI
-    structured = result["structured_response"]
-    print(f"\n🤖 Agent: {structured['message']}\n")
-    
-    # If cover letter fields exist
-    if structured.get('cover_letter_header'):
-        print("\n📄 Cover Letter Generated:")
-        print(f"{structured['cover_letter_header']}\n")
-        print(f"{structured['cover_letter_body']}\n")
-        print(f"{structured['cover_letter_goodbye']}")"""
-
-
-
-
-def respond(message, history):
-    # 1. Build message list
+def respond(message, history, thread_id):
     messages = history + [{"role": "user", "content": message}]
     
-    # 2. Invoke your agent (with tools!)
-    response = agent.invoke({"messages": messages}, {"configurable" : {"thread_id" : "001"}})
+    response = agent.invoke({"messages": messages}, {"configurable" : {"thread_id" : thread_id}})
     
-    # 3. Extract bot's response
-    bot_message = response['messages'][-1].content
+    bot_reply = ChatMessage(
+        role="assistant",
+        content=response['messages'][-1].content
+    )
     
-    # 4. Return what will be displayed in the bubble..
-    return bot_message
+    return bot_reply
 
 demo = gr.ChatInterface(
     fn=respond,
     type="messages",
+    additional_inputs=[thread_id_state]
 )
 
 demo.launch()
