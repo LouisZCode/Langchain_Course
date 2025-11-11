@@ -17,6 +17,7 @@ import gradio as gr
 from gradio import ChatMessage
 
 from langchain.tools import tool
+from tabulate import tabulate
 
 APPLICATIONS = "applications.csv"
 
@@ -69,8 +70,9 @@ def read_job_application_database():
     Returns: the dataframe
     """
     dataframe = pd.read_csv(APPLICATIONS)
+    final_df = dataframe.to_markdown(index=False)
 
-    return dataframe
+    return final_df
 
 
 @tool(
@@ -174,7 +176,7 @@ def delete_job_application(company_name : str) -> str:
         return f"the application data for the {company_name} has been permanently deleted" 
 
 
-# TODO Fix the READ DATABASE so the LLM can see it all (remove string only)
+# TODO  Add the approval or rejection in Gradio for the HITL part!
 
 @tool(
     "cover_letter_writing",
