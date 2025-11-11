@@ -230,24 +230,60 @@ agent = create_agent(
 
 message = HumanMessage(content=SYSTEM_PROMPT)
 
-thread_id_state = gr.State("001") 
+def respond(message, history, thread_id, waiting_for_approval):
+    
+    if waiting_for_approval:
 
-def respond(message, history, thread_id):
-    # 1. Build the full message list (history + current message)
-    messages = history + [{"role": "user", "content": message}]
-    
-    # 2. Invoke the agent
-    response = agent.invoke(
-        {"messages": messages}, 
-        {"configurable": {"thread_id": thread_id}}
-    )
-    
-    return response["messages"][-1].content
+        decision = message.lower().strip()
+
+        if decision in ["yes" , "y", "approve"]:
+            decision = "approve"
+        elif decision in ["no", "n", "reject"]:
+            decision = "reject"
+        else:
+            decision = "reject"
+
+        response = agent.invoke(
+            Command(resume={"decisions": [{"type": decision}]}),
+            {"configurable" : {"thread_id" : thread_id}}
+            )
+
+        return response["messages"][-1].content, False
+
+
+    else:
+
+        messages = history + [{"role": "user", "content": message}]
+
+        
+        response = agent.invoke(
+            {"messages": messages}, 
+            {"configurable": {"thread_id": thread_id}}
+        )
+
+        if "__interrupt__" in response:
+
+            approval_message = (
+                f"⚠️ **Approval Required**\n\n"
+                f"The agent wants to delete a Job Application"
+                f"Do you approve? (yes/no)"
+            )
+            
+            # Return the approval message + set waiting flag to True
+            return approval_message, True
+        
+        # Normal response - no interrupt
+        return response["messages"][-1].content, False
+
+
+thread_id_state = gr.State("001")
+waiting_for_approval_state = gr.State(False) 
 
 demo = gr.ChatInterface(
     fn=respond,
     type="messages",
-    additional_inputs=[thread_id_state]
+    additional_inputs=[thread_id_state, waiting_for_approval_state],
+    additional_outputs=[waiting_for_approval_state]
 )
 
 demo.launch()
