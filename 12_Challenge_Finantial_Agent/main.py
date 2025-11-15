@@ -1,23 +1,36 @@
-from ollama_agent import call_ollama
+from langchain.agents import create_agent
+from langchain_ollama import ChatOllama
+
 import gradio as gr
-
-
 import yaml
 
 
 with open("prompts.yaml", "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
-
     prompt = prompts["HISTORIAN"]
 
+print(prompt)
 
-def response (message, history):
+model = ChatOllama(
+    model="gemma3:27b"
+)
 
-    messages = history + [{"role": "user", "content": message}]
+agent = create_agent(
+    model=model,
+    system_prompt=prompt
+)
 
-    response = call_ollama(prompt, messages)
 
-    return response
+# TODO - Give it Memory so it remembers the ocnversation
+
+
+##Gradio-ing
+def response(message, history):
+
+    response = agent.invoke(
+        {"messages": [{"role": "user", "content": message}]}
+    )
+    return response["messages"][-1].content
 
 with gr.Blocks() as demo:
     with gr.Tabs():
