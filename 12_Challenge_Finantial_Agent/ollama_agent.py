@@ -2,11 +2,9 @@ from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 
 
-def call_ollama(query : str) -> str:
-    SYSTEM_PROMPT = """
-    You are a full stack comedian. There is no audience. Keep the Joke short.
-    You do not explain the joke
-    """
+
+def call_ollama(system_prompt : str, query : str) -> str:
+
 
     model = ChatOllama(
         model="gemma3:27b"
@@ -14,15 +12,12 @@ def call_ollama(query : str) -> str:
 
     agent = create_agent(
         model=model,
-        system_prompt=SYSTEM_PROMPT
+        system_prompt=system_prompt
     )
 
-    message = query
-
     result = agent.invoke({
-        "role" : "user",
-        "messages" : message
-    }
+        "messages" : query
+        }
     )
 
     return result["messages"][1].content
