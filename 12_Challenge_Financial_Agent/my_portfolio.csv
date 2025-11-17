@@ -1,1 +1,4 @@
-ticket_symbol,date_bought,price_bought
+ticket_symbol,number_of_stocks,individual_price_bought,total_cost_trade,date_bought
+PLTR,10.0,171.13,1711.3,2025-11-17 17:30:32.297335
+TSLA,10.0,419.32,4193.2,2025-11-17 17:31:13.305405
+PYPL,10.0,62.94,629.4,2025-11-17 17:32:08.742935

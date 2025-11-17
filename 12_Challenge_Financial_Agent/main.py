@@ -10,6 +10,7 @@ import os
 import pandas as pd
 
 from tabulate import tabulate
+from datetime import datetime
 
 import gradio as gr
 import yaml
@@ -22,8 +23,10 @@ MY_PORTOLIO = "my_portfolio.csv"
 ## Create or check if the databases exist, if not, create an empty one
 
 if not os.path.exists(MY_PORTOLIO):
-    new_dataframe = pd.DataFrame(columns=["ticket_symbol", "date_bought", "price_bought"])
+    new_dataframe = pd.DataFrame(columns=["ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
     new_dataframe.to_csv(MY_PORTOLIO, index=False)
+
+    #and adds a "cash" row with 0 dollars.
 
 
 ##  Load of API Keys and Prompts
@@ -50,12 +53,10 @@ retriever_tool = create_retriever_tool(
 )
 
 ## Tools for My_Portfolio Agent
-
-
 @tool(
     "read_my_portfolio",
     parse_docstring=True,
-    description="reads the current potfolio information"
+    description="reads the current potfolio information of the user"
 )
 def read_my_portfolio():
     """
@@ -76,12 +77,47 @@ def read_my_portfolio():
     return portfolio_inforamtion
 
 
+@tool(
+    "add_to_portfolio",
+    parse_docstring=True,
+    description="adds a new buy row to the portfolio of the user"
+)
+def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_price_bought : float) -> str:
+    """
+    Description:
+        adds a new buy row to the portfolio of the user
+
+    Args:
+        ticket_symbol (str) : the initials of the stock bought, number_of_stocks (float) : the quantity of stocks bought in this transaction, individual_price_bought (float): the proce of each individual stock, total_cost_trade (float): the result of the multiplication of number of stocks bough by the cost per individual stock, date_bought: todays date.
+
+    Returns:
+        Lets the user know a new buy has been done and gives the details of that new transaction
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    date_bought = datetime.now()
+
+    total_cost_trade = number_of_stocks * individual_price_bought
+    
+    df = pd.read_csv(MY_PORTOLIO)
+    new_row = pd.DataFrame([{
+        "ticket_symbol" : ticket_symbol,
+        "number_of_stocks" : number_of_stocks,
+        "individual_price_bought" : individual_price_bought,
+        "total_cost_trade" : total_cost_trade,
+        "date_bought" : date_bought
+    }])
+
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(MY_PORTOLIO, index=False)
+    
+    return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_bought': {individual_price_bought}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_bought}"
+    
 
 
-# TODO Portfolio needs to have:  Ticket Symbol / Number of Stocks / Date bought / Proce bought at / Total Cost
-# TODO   1: Portfolio LOGS and ways to sum etc.. 
-# TODO - Tool to read the portfolio
 # TODO - Tool to add to porfolio
+# TODO add MiddleWare to have HumanInTheLoop to confirma  buy of a stock.
 # TODO it is cheap or expensive? Tool to ca
 
 
@@ -99,7 +135,7 @@ my_portfolio_agent = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=my_portfolio_prompt,
     checkpointer=InMemorySaver(),
-    tools=[read_my_portfolio]
+    tools=[read_my_portfolio, add_to_portfolio]
 )
 
 
