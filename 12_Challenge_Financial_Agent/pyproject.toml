@@ -5,8 +5,13 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "faiss-cpu>=1.13.0",
     "gradio>=5.49.1",
     "langchain>=1.0.7",
+    "langchain-community>=0.4.1",
     "langchain-ollama>=1.0.0",
+    "langchain-text-splitters>=1.0.0",
+    "pymupdf>=1.26.6",
     "pyyaml>=6.0.3",
+    "sentence-transformers>=5.1.2",
 ]
