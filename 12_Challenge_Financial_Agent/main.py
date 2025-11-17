@@ -14,11 +14,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-THREAD_ID = "thread_001"
-
 with open("prompts.yaml", "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
-    prompt = prompts["QUATERLY_RESULTS_EXPERT"]
+    quarter_results_prompt = prompts["QUATERLY_RESULTS_EXPERT"]
+    my_portfolio_prompt = prompts["MY_PORTFOLIO_EXPERT"]
 
 #print(prompt)
 
@@ -36,20 +35,41 @@ retriever_tool = create_retriever_tool(
 
 
 ##Add allinfo to agent
-agent = create_agent(
+quarter_result_agent = create_agent(
     model="openai:gpt-5-mini",
-    system_prompt=prompt,
+    system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
     tools=[retriever_tool]
 )
 
+my_portfolio_agent = create_agent(
+    model="openai:gpt-5-mini",
+    system_prompt=my_portfolio_prompt,
+    checkpointer=InMemorySaver(),
+    tools=[]
+)
+
+choice = input("So do you want to:\n10:")
+
 
 ##Gradio-ing
-def response(message, history):
+def response_quaterly(message, history):
 
-    response = agent.invoke(
+    response = quarter_result_agent.invoke(
         {"messages": [{"role": "user", "content": message}]},
-        {"configurable": {"thread_id": THREAD_ID}}
+        {"configurable": {"thread_id": "thread_001"}}
+    )
+
+    for i, msg in enumerate(response["messages"]):
+        msg.pretty_print()
+
+    return response["messages"][-1].content
+
+def response_my_portfolio(message, history):
+
+    response = my_portfolio_agent.invoke(
+        {"messages": [{"role": "user", "content": message}]},
+        {"configurable": {"thread_id": "thread_001"}}
     )
 
     for i, msg in enumerate(response["messages"]):
@@ -60,9 +80,14 @@ def response(message, history):
 with gr.Blocks() as demo:
     with gr.Tabs():
 
-        with gr.Tab("Tab 1"):
+        with gr.Tab("Quaterly Reports Expert"):
             gr.ChatInterface(
-                fn=response
+                fn=response_quaterly
+            )
+
+        with gr.Tab("My Portfolio Management"):
+            gr.ChatInterface(
+                fn=response_my_portfolio
             )
 
 demo.launch()
