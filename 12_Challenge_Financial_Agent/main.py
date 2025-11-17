@@ -1,4 +1,5 @@
 from langchain.agents import create_agent
+#Ollama agents not able to use tools, to figure out later.
 from langchain_ollama import ChatOllama
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.tools import create_retriever_tool
@@ -8,6 +9,10 @@ from langchain_community.vectorstores import FAISS
 import gradio as gr
 import yaml
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 THREAD_ID = "thread_001"
 
@@ -16,10 +21,6 @@ with open("prompts.yaml", "r", encoding="utf-8") as f:
     prompt = prompts["QUATERLY_RESULTS_EXPERT"]
 
 #print(prompt)
-
-model = ChatOllama(
-    model="gemma3:27b"
-)
 
 ##Create Retriever RAG Tool
 embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
@@ -36,12 +37,11 @@ retriever_tool = create_retriever_tool(
 
 ##Add allinfo to agent
 agent = create_agent(
-    model=model,
+    model="openai:gpt-5-mini",
     system_prompt=prompt,
     checkpointer=InMemorySaver(),
     tools=[retriever_tool]
 )
-
 
 
 ##Gradio-ing
@@ -51,6 +51,10 @@ def response(message, history):
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": THREAD_ID}}
     )
+
+    for i, msg in enumerate(response["messages"]):
+        msg.pretty_print()
+
     return response["messages"][-1].content
 
 with gr.Blocks() as demo:
