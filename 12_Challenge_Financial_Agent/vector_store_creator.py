@@ -1,6 +1,6 @@
 from langchain_community.document_loaders import PyMuPDFLoader, DirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")

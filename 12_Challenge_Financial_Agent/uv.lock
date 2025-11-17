@@ -15,6 +15,7 @@ dependencies = [
     { name = "gradio" },
     { name = "langchain" },
     { name = "langchain-community" },
+    { name = "langchain-huggingface" },
     { name = "langchain-ollama" },
     { name = "langchain-text-splitters" },
     { name = "pymupdf" },
@@ -28,6 +29,7 @@ requires-dist = [
     { name = "gradio", specifier = ">=5.49.1" },
     { name = "langchain", specifier = ">=1.0.7" },
     { name = "langchain-community", specifier = ">=0.4.1" },
+    { name = "langchain-huggingface", specifier = ">=1.0.1" },
     { name = "langchain-ollama", specifier = ">=1.0.0" },
     { name = "langchain-text-splitters", specifier = ">=1.0.0" },
     { name = "pymupdf", specifier = ">=1.26.6" },
@@ -861,6 +863,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/d9/61/c356e19525a210baf960968dbfb03ee38a05e05ddb41efeb32abfcb4e360/langchain_core-1.0.5.tar.gz", hash = "sha256:7ecbad9a60dde626252733a9c18c7377f4468cfe00465ffa99f5e9c6cb9b82d2", size = 778259, upload-time = "2025-11-14T16:59:27.277Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6e/ee/aaf2343a35080154c82ceb110e03dd00f15459bc72e518df51724cbc41a9/langchain_core-1.0.5-py3-none-any.whl", hash = "sha256:d24c0cf12cfcd96dd4bd479aa91425f3a6652226cd824228ae422a195067b74e", size = 471506, upload-time = "2025-11-14T16:59:25.629Z" },
+]
+
+[[package]]
+name = "langchain-huggingface"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "langchain-core" },
+    { name = "tokenizers" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/85/8ae6fa9e70a4d2647151df59abf8bc658c159936fcb1e508b86c4f6f23b6/langchain_huggingface-1.0.1.tar.gz", hash = "sha256:9e54b81303b60656f88f45e9a876fb4e3ea0bfb5d40715f802c26811fd8cd72b", size = 248461, upload-time = "2025-11-03T19:53:43.072Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/9d/90dc488e426e4dfef63a77b04a06ef816297a1b036075e5fd34a98436875/langchain_huggingface-1.0.1-py3-none-any.whl", hash = "sha256:032325539dd6b2970910356ecfc363283e8b4e51fb1890de40666a52e95e7d53", size = 27920, upload-time = "2025-11-03T19:53:42.173Z" },
 ]
 
 [[package]]
