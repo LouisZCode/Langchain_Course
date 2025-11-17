@@ -218,11 +218,10 @@ agent = create_agent(
     model="openai:gpt-5-mini",
     tools=[read_job_application_database, add_job_application, edit_job_status, delete_job_application, cover_letter_writing],
     middleware=[my_prompt,
-    HumanInTheLoopMiddleware(
-        interrupt_on={
-            "delete_job_application" : {"allowed_decisions": ["approve", "reject"],
+    HumanInTheLoopMiddleware(interrupt_on={"delete_job_application" : {
+            "allowed_decisions": ["approve", "reject"],
             "description": "confirm or reject the permanent deletion of this job application"
-                }
+            }
             }
         )
     ],

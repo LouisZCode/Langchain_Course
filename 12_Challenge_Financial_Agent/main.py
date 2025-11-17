@@ -17,6 +17,9 @@ import yaml
 
 from dotenv import load_dotenv
 
+from langchain.agents.middleware import HumanInTheLoopMiddleware
+from langgraph.types import Command
+
 MY_PORTOLIO = "my_portfolio.csv"
 
 
@@ -116,7 +119,6 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
     
 
 
-# TODO - Tool to add to porfolio
 # TODO add MiddleWare to have HumanInTheLoop to confirma  buy of a stock.
 # TODO it is cheap or expensive? Tool to ca
 
@@ -135,9 +137,17 @@ my_portfolio_agent = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=my_portfolio_prompt,
     checkpointer=InMemorySaver(),
-    tools=[read_my_portfolio, add_to_portfolio]
-)
-
+    tools=[read_my_portfolio, add_to_portfolio],
+    middleware=[
+        HumanInTheLoopMiddleware(
+            interrupt_on={
+                "add_to_portfolio": {
+                    "allowed_decisions": ["approve", "reject"],
+                    "description": "Confirm addition of new stock to portfolio"
+                }
+            }
+        )
+    ])
 
 # TODO Agent that recommends or not different stocks (Multi Agent panel) and saves in a csv: Buy-Hold-Sell based on finantials
 #and based on the current price action of the company:  A.k.a. access to finantial data.
@@ -159,17 +169,58 @@ def response_quaterly(message, history):
 
     return response["messages"][-1].content
 
-def response_my_portfolio(message, history):
 
-    response = my_portfolio_agent.invoke(
-        {"messages": [{"role": "user", "content": message}]},
-        {"configurable": {"thread_id": "thread_001"}}
-    )
 
-    for i, msg in enumerate(response["messages"]):
-        msg.pretty_print()
+def response_my_portfolio(message, history, waiting_for_approval):
 
-    return response["messages"][-1].content
+    if waiting_for_approval:
+
+        decision = message.lower().strip()
+
+        if decision in ["yes" , "y", "approve"]:
+            decision = "approve"
+        elif decision in ["no", "n", "reject"]:
+            decision = "reject"
+        else:
+            decision = "reject"
+
+        response = my_portfolio_agent.invoke(
+            Command(resume={"decisions": [{"type": decision}]}),
+            {"configurable" : {"thread_id" : "thread_002"}}
+            )
+
+        
+        for i, msg in enumerate(response["messages"]):
+            msg.pretty_print()
+
+        return response["messages"][-1].content, False
+
+    else:
+
+        messages = history + [{"role": "user", "content": message}]
+
+        response = my_portfolio_agent.invoke(
+            {"messages": [{"role": "user", "content": message}]},
+            {"configurable": {"thread_id": "thread_002"}}
+        )
+
+        for i, msg in enumerate(response["messages"]):
+            msg.pretty_print()
+
+        if "__interrupt__" in response:
+
+            approval_message = (
+                f"⚠️ **Approval Required**\n\n"
+                f"The agent wants BUY stock"
+                f"Do you approve? (yes/no)"
+                )
+
+            return approval_message, True
+
+        return response["messages"][-1].content, False
+
+
+waiting_for_approval_state = gr.State(False)
 
 with gr.Blocks() as demo:
     with gr.Tabs():
@@ -181,7 +232,9 @@ with gr.Blocks() as demo:
 
         with gr.Tab("My Portfolio Management"):
             gr.ChatInterface(
-                fn=response_my_portfolio
+                fn=response_my_portfolio,
+                additional_inputs=[waiting_for_approval_state],
+                additional_outputs=[waiting_for_approval_state]
             )
 
 demo.launch()
