@@ -81,22 +81,108 @@ trades logs database, and will organize it in a way that make sit understandable
 Called everytime there is a movement or change in the portfolio like cash movements, or trades.
 """
 
-def _update_portfolio():
+def _update_portfolio_info(trade_log_path=TRADE_LOG, portfolio_path=PORTFOLIO, cash_log_path=CASH_LOG):
     """
-    This Helper Function will update the information in the portfolio database / csv 
-    based on the current log history
+    Rebuilds the portfolio.csv from scratch based on trade_log.csv,
+    including cash position and percentage weights.
     """
-    #Get hold of both the trades log and the portfolio dataframes
-    portfolio_df = pd.read_csv(PORTFOLIO)
-    trades_df = pd.read_csv(TRADE_LOG)
+    trade_log_df = pd.read_csv(trade_log_path)
+    cash_log_df = pd.read_csv(cash_log_path)
 
-   # Get all the tickets existing in the log, and eliminate duplicates:
-    tickets_list = trades_df["ticket_symbol"].to_list()
-    filtered_list= [k for k, v in Counter(tickets_list).items() if v == 1]
+    # Calculate total cash (already has +/- signs in the data)
+    total_cash = cash_log_df['cash_ammount'].sum()
 
-    for ticket in filtered_list:
-        pass
-    pass
+    # Start with empty portfolio dictionary
+    portfolio = {}
+
+    # Process all trades to rebuild portfolio from scratch
+    for index, row in trade_log_df.iterrows():
+        symbol = row['ticket_symbol']
+        quantity = row['number_of_stocks']
+        price = row['individual_price']
+        buy_or_sell = row['buy_or_sell']
+
+        if buy_or_sell == 'buy':
+            if symbol not in portfolio:
+                # New stock
+                portfolio[symbol] = {
+                    'number_of_stocks': quantity,
+                    'total_cost_stock': quantity * price,
+                    'average_price': price
+                }
+            else:
+                # Add to existing position
+                current_qty = portfolio[symbol]['number_of_stocks']
+                current_cost = portfolio[symbol]['total_cost_stock']
+                
+                new_qty = current_qty + quantity
+                new_cost = current_cost + (quantity * price)
+                new_avg_price = new_cost / new_qty
+                
+                portfolio[symbol]['number_of_stocks'] = new_qty
+                portfolio[symbol]['total_cost_stock'] = new_cost
+                portfolio[symbol]['average_price'] = new_avg_price
+
+        elif buy_or_sell == 'sell':
+            if symbol in portfolio:
+                # Reduce position based on average cost
+                current_qty = portfolio[symbol]['number_of_stocks']
+                current_avg_price = portfolio[symbol]['average_price']
+                
+                new_qty = current_qty - quantity
+                cost_of_sold = quantity * current_avg_price
+                new_cost = portfolio[symbol]['total_cost_stock'] - cost_of_sold
+                
+                if new_qty <= 0:
+                    # Fully sold - remove from portfolio
+                    del portfolio[symbol]
+                else:
+                    # Partial sale - keep average price the same
+                    portfolio[symbol]['number_of_stocks'] = new_qty
+                    portfolio[symbol]['total_cost_stock'] = new_cost
+                    portfolio[symbol]['average_price'] = current_avg_price
+
+    # Convert dictionary to DataFrame
+    portfolio_data = []
+    for symbol, data in portfolio.items():
+        portfolio_data.append({
+            'ticket_symbol': symbol,
+            'number_of_stocks': data['number_of_stocks'],
+            'average_price': data['average_price'],
+            'total_cost_stock': data['total_cost_stock'],
+            'porcentage_weight': 0.0,  # Calculate below
+            'total_PL': 0.0
+        })
+    
+    portfolio_df = pd.DataFrame(portfolio_data)
+
+    # Calculate total values
+    total_portfolio_value = portfolio_df['total_cost_stock'].sum() if len(portfolio_df) > 0 else 0
+    total_account_value = total_portfolio_value + total_cash
+
+    # Calculate percentage weights
+    if total_account_value > 0:
+        portfolio_df['porcentage_weight'] = round((portfolio_df['total_cost_stock'] / total_account_value) * 100, 2)
+        cash_percentage = round((total_cash / total_account_value) * 100, 2)
+    else:
+        cash_percentage = 100.0
+
+    # Add CASH row at the top
+    cash_row = pd.DataFrame([{
+        'ticket_symbol': 'CASH',
+        'porcentage_weight': cash_percentage,
+        'number_of_stocks': 0,
+        'average_price': 0,
+        'total_cost_stock': total_cash,
+        'total_PL': 0.0
+    }])
+
+    # Combine cash row with portfolio
+    portfolio_df = pd.concat([cash_row, portfolio_df], ignore_index=True)
+
+    # Save to CSV
+    portfolio_df.to_csv(portfolio_path, index=False)
+
 
 
 ## global add-cash tool
@@ -119,6 +205,8 @@ def _withdraw_cash(cash_ammount : float) -> str:
         df = pd.concat([df, new_row], ignore_index=True)
         df.to_csv(CASH_LOG, index=False)
 
+        _update_portfolio_info()
+
     return f"Added {cash_ammount} usd to the cah position"
 
 
@@ -134,6 +222,8 @@ def _add_cash(cash_ammount: float) -> str:
 
     df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv(CASH_LOG, index=False)
+
+    _update_portfolio_info()
 
     return f"Added {cash_ammount} usd to the cah position"
 
@@ -367,6 +457,10 @@ my_portfolio_agent = create_agent(
 
 
 ##Gradio-ing
+"""
+Agent that reads the vector stores, and gives you info about the quaterly information
+"""
+
 def response_quaterly(message, history):
 
     response = quarter_result_agent.invoke(
@@ -380,7 +474,9 @@ def response_quaterly(message, history):
     return response["messages"][-1].content
 
 
-
+"""
+Agent that manages the portfolio
+"""
 def response_my_portfolio(message, history, waiting_for_approval):
 
     if waiting_for_approval:
@@ -403,7 +499,7 @@ def response_my_portfolio(message, history, waiting_for_approval):
         for i, msg in enumerate(response["messages"]):
             msg.pretty_print()
 
-        return response["messages"][-1].content, False
+        return response["messages"][-1].content, False, PORTFOLIO
 
     else:
 
@@ -425,12 +521,13 @@ def response_my_portfolio(message, history, waiting_for_approval):
                 f"Do you approve? (yes/no)"
                 )
 
-            return approval_message, True
+            return approval_message, True, PORTFOLIO
 
-        return response["messages"][-1].content, False
+        return response["messages"][-1].content, False, PORTFOLIO
 
 
 waiting_for_approval_state = gr.State(False)
+_update_portfolio_info()
 
 with gr.Blocks() as demo:
     with gr.Tabs():
@@ -443,13 +540,12 @@ with gr.Blocks() as demo:
 
         with gr.Tab("Trade Assistant"):
             gr.Markdown("# Your Portfolio") 
-            gr.DataFrame(PORTFOLIO)
+            portfolio_display = gr.DataFrame(PORTFOLIO)
             gr.Markdown("## Manage your Portfolio:") 
             gr.ChatInterface(
                 fn=response_my_portfolio,
                 additional_inputs=[waiting_for_approval_state],
-                additional_outputs=[waiting_for_approval_state]
+                additional_outputs=[waiting_for_approval_state, portfolio_display]
             )
-            # TODO Create a table that shows the quantity of each stock + cash and gives a % of each
 
 demo.launch()
