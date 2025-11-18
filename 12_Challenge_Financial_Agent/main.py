@@ -156,15 +156,20 @@ def _update_portfolio_info(trade_log_path=TRADE_LOG, portfolio_path=PORTFOLIO, c
     
     portfolio_df = pd.DataFrame(portfolio_data)
 
-    # Calculate total values
-    total_portfolio_value = portfolio_df['total_cost_stock'].sum() if len(portfolio_df) > 0 else 0
-    total_account_value = total_portfolio_value + total_cash
-
-    # Calculate percentage weights
-    if total_account_value > 0:
-        portfolio_df['porcentage_weight'] = round((portfolio_df['total_cost_stock'] / total_account_value) * 100, 2)
-        cash_percentage = round((total_cash / total_account_value) * 100, 2)
+    # Check if portfolio has any stocks
+    if len(portfolio_df) > 0:
+        # Has stocks - calculate percentages
+        total_portfolio_value = portfolio_df['total_cost_stock'].sum()
+        total_account_value = total_portfolio_value + total_cash
+        
+        if total_account_value > 0:
+            portfolio_df['porcentage_weight'] = round((portfolio_df['total_cost_stock'] / total_account_value) * 100, 2)
+            cash_percentage = round((total_cash / total_account_value) * 100, 2)
+        else:
+            cash_percentage = 100.0
     else:
+        # No stocks yet - 100% cash
+        total_account_value = total_cash
         cash_percentage = 100.0
 
     # Add CASH row at the top
@@ -185,7 +190,7 @@ def _update_portfolio_info(trade_log_path=TRADE_LOG, portfolio_path=PORTFOLIO, c
 
 
 
-## global add-cash tool
+## cash management functions and tools
 def _withdraw_cash(cash_ammount : float) -> str:
     df = pd.read_csv(CASH_LOG)
     cash_column_total = df["cash_ammount"].sum()
@@ -419,7 +424,11 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
     
     return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_sold': {individual_price_sold}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_sold}. The cash already was added to the cash balance"
 
+## Get real market data from the Market
+# https://www.alphavantage.co/
 
+# TODO understand how to get the data from markets using an API and add it to the Portfolio.
+# Add a current price that updates and use it to get a P&L estimate.
 
 ##Add allinfo to agent
 quarter_result_agent = create_agent(
@@ -524,6 +533,10 @@ def response_my_portfolio(message, history, waiting_for_approval):
             return approval_message, True, PORTFOLIO
 
         return response["messages"][-1].content, False, PORTFOLIO
+
+
+# TODO grab the data in the interrupt__ value, and use it to selfpopulate correctly aproval_message
+# with the stock, if it is BUY or SELL, quantity and price
 
 
 waiting_for_approval_state = gr.State(False)

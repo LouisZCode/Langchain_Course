@@ -1,5 +1,3 @@
 ticket_symbol,porcentage_weight,number_of_stocks,average_price,total_cost_stock,total_PL
-CASH,66.94,0.0,0.0,5650.0,0.0
-PLTR,6.4,18.0,30.0,540.0,0.0
-THGZ,2.96,5.0,50.0,250.0,0.0
-TSLA,23.7,10.0,200.0,2000.0,0.0
+CASH,73.33,0.0,0.0,16500.0,0.0
+NVDA,26.67,15.0,400.0,6000.0,0.0
