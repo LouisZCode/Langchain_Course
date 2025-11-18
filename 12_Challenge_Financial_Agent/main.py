@@ -28,7 +28,7 @@ CASH_LOG = "my_cash.csv"
 ## Create or check if the databases exist, if not, create an empty one
 
 if not os.path.exists(TRADE_LOG):
-    new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
+    new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price", "total_cost_trade", "date_transaction"])
     new_dataframe.to_csv(TRADE_LOG, index=False)
 
 if not os.path.exists(PORTFOLIO):
@@ -65,12 +65,50 @@ retriever_tool = create_retriever_tool(
 )
 
 ## global add-cash tool
+def _withdraw_cash(cash_ammount : float) -> str:
+    df = pd.read_csv(CASH_LOG)
+    cash_column_total = df["cash_ammount"].sum()
+
+    if cash_column_total < cash_ammount:
+        return "You dont have enough funds to withdraw that ammount"
+
+    else:
+        date_transaction = datetime.now()
+        
+        new_row = pd.DataFrame([{
+        "add_or_withdraw" : "withdraw",
+        "cash_ammount" : -cash_ammount, 
+        "date_of_transaction" : date_transaction
+        }])
+
+        df = pd.concat([df, new_row], ignore_index=True)
+        df.to_csv(CASH_LOG, index=False)
+
+    return f"Added {cash_ammount} usd to the cah position"
+
+
+def _add_cash(cash_ammount: float) -> str:
+    date_transaction = datetime.now()
+    
+    df = pd.read_csv(CASH_LOG)
+    new_row = pd.DataFrame([{
+    "add_or_withdraw" : "add",
+    "cash_ammount" : cash_ammount, 
+    "date_of_transaction" : date_transaction
+    }])
+
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(CASH_LOG, index=False)
+
+    return f"Added {cash_ammount} usd to the cah position"
+
+
 @tool(
     "add_cash",
     parse_docstring=True,
     description="adds cash to the portfolio cash position"
 )
-def add_cash(cash_ammount : float) -> str:
+def add_cash_tool(cash_ammount : float) -> str:
     """
     Description:
         adds cash to the account
@@ -84,26 +122,16 @@ def add_cash(cash_ammount : float) -> str:
     Raises:
         Lets the user know if there is a lack of information to create this transaction
     """
-    date_transaction = datetime.now()
-    
-    df = pd.read_csv(CASH_LOG)
-    new_row = pd.DataFrame([{
-    "add_or_withdraw" : "add",
-    "cash_ammount" : cash_ammount, 
-    "date_of_transaction" : date_transaction
-    }])
+    success = _add_cash(cash_ammount)
 
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(CASH_LOG, index=False)
-    
-    return f"Added {cash_ammount} usd to the cah position"
+    return success
 
 @tool(
     "withdraw_cash",
     parse_docstring=True,
     description="Checks if the user has enough cash, and if so, removes cash from the available cash of the users account"
 )
-def withdraw_cash(cash_ammount : float) -> str:
+def withdraw_cash_tool(cash_ammount : float) -> str:
     """
     Description:
         Checks if the user has enough cash, and if so, removes cash from the available cash of the users account
@@ -125,18 +153,9 @@ def withdraw_cash(cash_ammount : float) -> str:
         return "You dont have enough funds to withdraw that ammount"
 
     else:
-        date_transaction = datetime.now()
-        
-        new_row = pd.DataFrame([{
-        "add_or_withdraw" : "withdraw",
-        "cash_ammount" : -cash_ammount, 
-        "date_of_transaction" : date_transaction
-        }])
+        success = _withdraw_cash(cash_ammount)
+        return success
 
-        df = pd.concat([df, new_row], ignore_index=True)
-        df.to_csv(CASH_LOG, index=False)
-        
-        return f"Withdrew {cash_ammount} usd from the cash position"
 
 @tool(
     "count_cash",
@@ -189,12 +208,12 @@ def read_my_portfolio():
 @tool(
     "add_to_portfolio",
     parse_docstring=True,
-    description="adds a new buy row to the portfolio of the user"
+    description="Automatically checks if there is enough cash, and if so, uses it to buy the stock."
 )
 def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_price_bought : float) -> str:
     """
     Description:
-        adds a new buy row to the portfolio of the user
+        Automatically checks if there is enough cash, and if so, uses it to buy the stock.
 
     Args:
         ticket_symbol (str) : the initials of the stock bought, number_of_stocks (float) : the quantity of stocks bought in this transaction, individual_price_bought (float): the proce of each individual stock, total_cost_trade (float): the result of the multiplication of number of stocks bough by the cost per individual stock, date_bought: todays date.
@@ -205,28 +224,75 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
     Raises:
         Lets the user know if there is a lack of information to create this transaction
     """
-    date_bought = datetime.now()
-
+    df = pd.read_csv(CASH_LOG)
+    cash_column_total = df["cash_ammount"].sum()
     total_cost_trade = number_of_stocks * individual_price_bought
+
+    if cash_column_total < total_cost_trade:
+        return "You dont have enough funds to buy this ammount of this stock"
+
+    else:
+
+        date_bought = datetime.now()
+        
+        df = pd.read_csv(TRADE_LOG)
+        new_row = pd.DataFrame([{
+            "buy_or_sell" : "buy",
+            "ticket_symbol" : ticket_symbol,
+            "number_of_stocks" : number_of_stocks,
+            "individual_price" : +individual_price_bought,
+            "total_cost_trade" : -total_cost_trade,
+            "date_transaction" : date_bought
+        }])
+
+        df = pd.concat([df, new_row], ignore_index=True)
+        df.to_csv(TRADE_LOG, index=False)
+
+        _withdraw_cash(total_cost_trade)
+        
+        return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_bought': {individual_price_bought}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_bought}. Cash already taken form the available cash"
+    
+
+@tool(
+    "remove_from_portfolio",
+    parse_docstring=True,
+    description="Sells stock and automatically adds that cash to the total cash balance."
+)
+def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individual_price_sold : float) -> str:
+    """
+    Description:
+        Sells stock and automatically adds that cash to the total cash balance.
+
+    Args:
+        ticket_symbol (str) : the initials of the stock sold, number_of_stocks (float) : the quantity of stocks sold in this transaction, individual_price_sold (float): the price of each individual stock, total_return_trade (float): the result of the multiplication of number of stocks bough by the cost per individual stock, date_sold: todays date.
+
+    Returns:
+        Lets the user know a new sell has been done and gives the details of that new transaction
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    date_sold = datetime.now()
+
+    total_cost_trade = number_of_stocks * individual_price_sold
     
     df = pd.read_csv(TRADE_LOG)
     new_row = pd.DataFrame([{
-        "buy_or_sell" : "buy",
+        "buy_or_sell" : "sell",
         "ticket_symbol" : ticket_symbol,
         "number_of_stocks" : number_of_stocks,
-        "individual_price_bought" : individual_price_bought,
-        "total_cost_trade" : total_cost_trade,
-        "date_bought" : date_bought
+        "individual_price" : -individual_price_sold,
+        "total_cost_trade" : +total_cost_trade,
+        "date_transaction" : date_sold
     }])
 
     df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv(TRADE_LOG, index=False)
-    
-    return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_bought': {individual_price_bought}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_bought}"
-    
 
-# TODO Tool to sell or delete a row form the stock list
-# TODO add MiddleWare to have HumanInTheLoop to confirma  SELL of a stock.
+    _add_cash(total_cost_trade)
+    print(f"Added {total_cost_trade} cash to the cash position")
+    
+    return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_sold': {individual_price_sold}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_sold}. The cash already was added to the cash balance"
 
 
 
@@ -243,17 +309,20 @@ my_portfolio_agent = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=my_portfolio_prompt,
     checkpointer=InMemorySaver(),
-    tools=[read_my_portfolio, add_to_portfolio, add_cash, withdraw_cash, cash_position_count],
+    tools=[read_my_portfolio, add_to_portfolio, remove_from_portfolio,  add_cash_tool, withdraw_cash_tool, cash_position_count],
     middleware=[
         HumanInTheLoopMiddleware(
             interrupt_on={
                 "add_to_portfolio": {
                     "allowed_decisions": ["approve", "reject"],
-                    "description": "Confirm addition of new stock to portfolio"
+                    "description": "Confirm addition of new stock to portfolio"},
+
+                "remove_from_portfolio" :{
+                    "allowed_decisions": ["approve", "reject"],
+                    "description": "Confirm removal of a stock from portfolio"}
                 }
-            }
-        )
-    ])
+            )
+        ])
 
 # TODO Agent that recommends or not different stocks (Multi Agent panel) and saves in a csv: Buy-Hold-Sell based on finantials
 #and based on the current price action of the company:  A.k.a. access to finantial data.
@@ -283,7 +352,7 @@ def response_my_portfolio(message, history, waiting_for_approval):
 
         decision = message.lower().strip()
 
-        if decision in ["yes" , "y", "approve"]:
+        if decision in ["yes" , "y", "approve", "buy"]:
             decision = "approve"
         elif decision in ["no", "n", "reject"]:
             decision = "reject"
@@ -316,8 +385,8 @@ def response_my_portfolio(message, history, waiting_for_approval):
         if "__interrupt__" in response:
 
             approval_message = (
-                f"⚠️ **Approval Required**\n\n"
-                f"The agent wants BUY stock"
+                f"⚠️ **Approval Required** ⚠️\n\n"
+                f"The agent wants BUY stock\n"
                 f"Do you approve? (yes/no)"
                 )
 

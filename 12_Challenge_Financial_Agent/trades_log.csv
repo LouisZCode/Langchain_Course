@@ -1,1 +1,5 @@
 buy_or_sell,ticket_symbol,number_of_stocks,individual_price_bought,total_cost_trade,date_bought
+buy,PLTR,10.0,200.0,2000.0,2025-11-18 12:07:06.993616
+buy,TSLA,20.0,300.0,6000.0,2025-11-18 12:07:43.726442
+sell,PLTR,5.0,-5000.0,25000.0,2025-11-18 12:13:38.982455
+sell,TSLA,5.0,-2000.0,10000.0,2025-11-18 12:20:39.682122
