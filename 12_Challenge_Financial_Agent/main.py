@@ -20,21 +20,25 @@ from dotenv import load_dotenv
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.types import Command
 
-TRADES = "trades_log.csv"
+TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
+CASH_LOG = "my_cash.csv"
 AVAILABLE_CASH = 0
 
 
 ## Create or check if the databases exist, if not, create an empty one
 
-if not os.path.exists(TRADES):
+if not os.path.exists(TRADE_LOG):
     new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
-    new_dataframe.to_csv(TRADES, index=False)
+    new_dataframe.to_csv(TRADE_LOG, index=False)
 
 if not os.path.exists(PORTFOLIO):
-    new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
+    new_dataframe = pd.DataFrame(columns=["ticket_symbol", "porcentage_weight", "number_of_stocks", "average_price", "total_cost_stock", "total_PL"])
     new_dataframe.to_csv(PORTFOLIO, index=False)
 
+if not os.path.exists(CASH_LOG):
+    new_dataframe = pd.DataFrame(columns=["add_or_withdraw","cash_ammount", "date_of_transaction"])
+    new_dataframe.to_csv(CASH_LOG, index=False)
     #and adds a "cash" row with 0 dollars.
 
 
@@ -61,6 +65,96 @@ retriever_tool = create_retriever_tool(
     description="Search through the document knowledge base to find relevant information."
 )
 
+## global add-cash tool
+@tool(
+    "add_cash",
+    parse_docstring=True,
+    description="adds cash to the portfolio cash position"
+)
+def add_cash(cash_ammount : float) -> str:
+    """
+    Description:
+        adds cash to the account
+
+    Args:
+        cash_ammount (str) : the cash ammount to be added to the account
+
+    Returns:
+        Lets the user know that cash has been added
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    date_transaction = datetime.now()
+    
+    df = pd.read_csv(CASH_LOG)
+    new_row = pd.DataFrame([{
+    "add_or_withdraw" : "add",
+    "cash_ammount" : cash_ammount, 
+    "date_of_transaction" : date_transaction
+    }])
+
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(CASH_LOG, index=False)
+    
+    return f"Added {cash_ammount} usd to the cah position"
+
+@tool(
+    "withdraw_cash",
+    parse_docstring=True,
+    description="adds cash to the portfolio cash position"
+)
+def withdraw_cash(cash_ammount : float) -> str:
+    """
+    Description:
+        withraws cash to the account
+
+    Args:
+        cash_ammount (str) :to be removed from the acocunt
+
+    Returns:
+        Lets the user know that cash has been withrawn
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    date_transaction = datetime.now()
+    
+    df = pd.read_csv(CASH_LOG)
+    new_row = pd.DataFrame([{
+    "add_or_withdraw" : "withdraw",
+    "cash_ammount" : -cash_ammount, 
+    "date_of_transaction" : date_transaction
+    }])
+
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(CASH_LOG, index=False)
+    
+    return f"Withdrew {cash_ammount} usd from the cash position"
+
+@tool(
+    "count_cash",
+    parse_docstring=True,
+    description="tell the total of available cash in cash position"
+)
+def cash_position_count() -> str:
+    #Sum and Rest all the cash logs to give a final cash position
+    """
+    Description:
+        gives you the total ammount of available cash in the users account
+
+    Returns:
+        Lets the user know how much cash is available
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    df = pd.read_csv(CASH_LOG)
+    cash_column_total = df["cash_ammount"].sum()
+
+    return f"the user has {cash_column_total} available usd"
+
+
 ## Tools for Trades Agent
 @tool(
     "read_my_portfolio",
@@ -81,7 +175,7 @@ def read_my_portfolio():
     Raises:
         Lets the user know if there is no information inside the portfolio
     """
-    dataframe = pd.read_csv(TRADES)
+    dataframe = pd.read_csv(TRADE_LOG)
     trading_log = dataframe.to_markdown(index=False)
     return trading_log 
 
@@ -109,7 +203,7 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
 
     total_cost_trade = number_of_stocks * individual_price_bought
     
-    df = pd.read_csv(TRADES)
+    df = pd.read_csv(TRADE_LOG)
     new_row = pd.DataFrame([{
         "buy_or_sell" : "buy",
         "ticket_symbol" : ticket_symbol,
@@ -120,7 +214,7 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
     }])
 
     df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(TRADES, index=False)
+    df.to_csv(TRADE_LOG, index=False)
     
     return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_bought': {individual_price_bought}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_bought}"
     
@@ -143,7 +237,7 @@ my_portfolio_agent = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=my_portfolio_prompt,
     checkpointer=InMemorySaver(),
-    tools=[read_my_portfolio, add_to_portfolio],
+    tools=[read_my_portfolio, add_to_portfolio, add_cash, withdraw_cash, cash_position_count],
     middleware=[
         HumanInTheLoopMiddleware(
             interrupt_on={
