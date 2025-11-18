@@ -20,14 +20,20 @@ from dotenv import load_dotenv
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.types import Command
 
-MY_PORTOLIO = "my_portfolio.csv"
+TRADES = "trades_log.csv"
+PORTFOLIO = "my_portfolio.csv"
+AVAILABLE_CASH = 0
 
 
 ## Create or check if the databases exist, if not, create an empty one
 
-if not os.path.exists(MY_PORTOLIO):
-    new_dataframe = pd.DataFrame(columns=["ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
-    new_dataframe.to_csv(MY_PORTOLIO, index=False)
+if not os.path.exists(TRADES):
+    new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
+    new_dataframe.to_csv(TRADES, index=False)
+
+if not os.path.exists(PORTFOLIO):
+    new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price_bought", "total_cost_trade", "date_bought"])
+    new_dataframe.to_csv(PORTFOLIO, index=False)
 
     #and adds a "cash" row with 0 dollars.
 
@@ -55,7 +61,7 @@ retriever_tool = create_retriever_tool(
     description="Search through the document knowledge base to find relevant information."
 )
 
-## Tools for My_Portfolio Agent
+## Tools for Trades Agent
 @tool(
     "read_my_portfolio",
     parse_docstring=True,
@@ -75,9 +81,9 @@ def read_my_portfolio():
     Raises:
         Lets the user know if there is no information inside the portfolio
     """
-    dataframe = pd.read_csv(MY_PORTOLIO)
-    portfolio_inforamtion = dataframe.to_markdown(index=False)
-    return portfolio_inforamtion
+    dataframe = pd.read_csv(TRADES)
+    trading_log = dataframe.to_markdown(index=False)
+    return trading_log 
 
 
 @tool(
@@ -103,8 +109,9 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
 
     total_cost_trade = number_of_stocks * individual_price_bought
     
-    df = pd.read_csv(MY_PORTOLIO)
+    df = pd.read_csv(TRADES)
     new_row = pd.DataFrame([{
+        "buy_or_sell" : "buy",
         "ticket_symbol" : ticket_symbol,
         "number_of_stocks" : number_of_stocks,
         "individual_price_bought" : individual_price_bought,
@@ -113,14 +120,13 @@ def add_to_portfolio(ticket_symbol : str, number_of_stocks : float, individual_p
     }])
 
     df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(MY_PORTOLIO, index=False)
+    df.to_csv(TRADES, index=False)
     
     return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_bought': {individual_price_bought}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_bought}"
     
 
-
-# TODO add MiddleWare to have HumanInTheLoop to confirma  buy of a stock.
-# TODO it is cheap or expensive? Tool to ca
+# TODO Tool to sell or delete a row form the stock list
+# TODO add MiddleWare to have HumanInTheLoop to confirma  SELL of a stock.
 
 
 
@@ -230,7 +236,7 @@ with gr.Blocks() as demo:
                 fn=response_quaterly
             )
 
-        with gr.Tab("My Portfolio Management"):
+        with gr.Tab("Trade Assistant"):
             gr.ChatInterface(
                 fn=response_my_portfolio,
                 additional_inputs=[waiting_for_approval_state],
