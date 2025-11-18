@@ -23,7 +23,6 @@ from langgraph.types import Command
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
-AVAILABLE_CASH = 0
 
 
 ## Create or check if the databases exist, if not, create an empty one
@@ -102,12 +101,12 @@ def add_cash(cash_ammount : float) -> str:
 @tool(
     "withdraw_cash",
     parse_docstring=True,
-    description="adds cash to the portfolio cash position"
+    description="Checks if the user has enough cash, and if so, removes cash from the available cash of the users account"
 )
 def withdraw_cash(cash_ammount : float) -> str:
     """
     Description:
-        withraws cash to the account
+        Checks if the user has enough cash, and if so, removes cash from the available cash of the users account
 
     Args:
         cash_ammount (str) :to be removed from the acocunt
@@ -118,19 +117,26 @@ def withdraw_cash(cash_ammount : float) -> str:
     Raises:
         Lets the user know if there is a lack of information to create this transaction
     """
-    date_transaction = datetime.now()
-    
-    df = pd.read_csv(CASH_LOG)
-    new_row = pd.DataFrame([{
-    "add_or_withdraw" : "withdraw",
-    "cash_ammount" : -cash_ammount, 
-    "date_of_transaction" : date_transaction
-    }])
 
-    df = pd.concat([df, new_row], ignore_index=True)
-    df.to_csv(CASH_LOG, index=False)
-    
-    return f"Withdrew {cash_ammount} usd from the cash position"
+    df = pd.read_csv(CASH_LOG)
+    cash_column_total = df["cash_ammount"].sum()
+
+    if cash_column_total < cash_ammount:
+        return "You dont have enough funds to withdraw that ammount"
+
+    else:
+        date_transaction = datetime.now()
+        
+        new_row = pd.DataFrame([{
+        "add_or_withdraw" : "withdraw",
+        "cash_ammount" : -cash_ammount, 
+        "date_of_transaction" : date_transaction
+        }])
+
+        df = pd.concat([df, new_row], ignore_index=True)
+        df.to_csv(CASH_LOG, index=False)
+        
+        return f"Withdrew {cash_ammount} usd from the cash position"
 
 @tool(
     "count_cash",

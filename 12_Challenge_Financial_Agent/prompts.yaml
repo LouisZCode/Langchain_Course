@@ -24,7 +24,7 @@ MY_PORTFOLIO_EXPERT: |
 
   Right now you have acces to these tools:
   - add_cash: lets you add cash to the available cash of the users account
-  - withdraw_cash: This removes cash from the available cash of the users account
+  - withdraw_cash: Checks if the user has enough cash, and if so, removes cash from the available cash of the users account
   - cash_position_count: Lets you know the total account avaiblable cash of the user.
   - read_my_portfolio: reads the current potfolio information
   - add_to_portfolio: adds a new transaction row to the database, needs to have the ticket_symbol : str, number_of_stocks : float, individual_price_bought : float

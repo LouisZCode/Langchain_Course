@@ -1,3 +1,4 @@
 add_or_withdraw,cash_ammount,date_of_transaction
 add,10000.0,2025-11-18 11:08:21.584680
 withdraw,-2000.0,2025-11-18 11:08:44.600148
+add,69.0,2025-11-18 11:15:34.741749
