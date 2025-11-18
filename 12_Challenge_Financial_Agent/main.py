@@ -22,9 +22,12 @@ from langgraph.types import Command
 
 from collections import Counter
 
+from typing import TypedDict, NotRequired
+
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
+STOCK_EVALS = "stock_evaluations.csv"
 
 
 ## Create or check if the databases exist, if not, create an empty one
@@ -43,8 +46,11 @@ if not os.path.exists(PORTFOLIO):
 if not os.path.exists(CASH_LOG):
     new_dataframe = pd.DataFrame(columns=["add_or_withdraw","cash_ammount", "date_of_transaction"])
     new_dataframe.to_csv(CASH_LOG, index=False)
-    #and adds a "cash" row with 0 dollars.
 
+if not os.path.exists(STOCK_EVALS):
+    new_dataframe = pd.DataFrame(columns=["stock", "concensus", "financial_stability", "growth", "price", "p/e", "one_sentence_reasoning"])
+    new_dataframe.to_csv(STOCK_EVALS, index=False)
+   
 
 ##  Load of API Keys and Prompts
 load_dotenv()
@@ -431,11 +437,35 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
 # Add a current price that updates and use it to get a P&L estimate.
 
 ##Add allinfo to agent
-quarter_result_agent = create_agent(
+class FinancialInformation(TypedDict):
+    financials: str
+    growth: str
+    recommendation: str
+    reason: str
+
+openai_finance_boy = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool]
+    tools=[retriever_tool],
+    response_format=FinancialInformation
+)
+
+
+anthropic_finance_boy = create_agent(
+    model="anthropic:claude-haiku-4-5",
+    system_prompt=quarter_results_prompt,
+    checkpointer=InMemorySaver(),
+    tools=[retriever_tool],
+    response_format=FinancialInformation
+)
+
+google_finance_boy = create_agent(
+    model="google_genai:gemini-2.5-flash-lite",
+    system_prompt=quarter_results_prompt,
+    checkpointer=InMemorySaver(),
+    tools=[retriever_tool],
+    response_format=FinancialInformation
 )
 
 
@@ -458,6 +488,8 @@ my_portfolio_agent = create_agent(
             )
         ])
 
+# TODO use an API to get the Gemini 3 Pro as one of the panelist and test it
+
 # TODO Agent that recommends or not different stocks (Multi Agent panel) and saves in a csv: Buy-Hold-Sell based on finantials
 #and based on the current price action of the company:  A.k.a. access to finantial data.
 # TODO This agent saves the information in a csv and shows it. gets the info form 2 years and shows a 10-25-50 % disscount, and
@@ -472,17 +504,32 @@ Agent that reads the vector stores, and gives you info about the quaterly inform
 
 def response_quaterly(message, history):
 
-    response = quarter_result_agent.invoke(
+    responses= []
+
+    response_openai = openai_finance_boy.invoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
 
-    for i, msg in enumerate(response["messages"]):
-        msg.pretty_print()
+    responses.append(response_openai["messages"][-1].content)
 
-    return response["messages"][-1].content
+    response_claude = anthropic_finance_boy.invoke(
+        {"messages": [{"role": "user", "content": message}]},
+        {"configurable": {"thread_id": "thread_001"}}
+    )
 
+    responses.append(response_claude["messages"][-1].content)
 
+    response_gemini = google_finance_boy.invoke(
+        {"messages": [{"role": "user", "content": message}]},
+        {"configurable": {"thread_id": "thread_001"}}
+    )
+
+    responses.append(response_gemini["messages"][-1].content)
+
+    return responses
+
+   
 """
 Agent that manages the portfolio
 """
@@ -560,5 +607,13 @@ with gr.Blocks() as demo:
                 additional_inputs=[waiting_for_approval_state],
                 additional_outputs=[waiting_for_approval_state, portfolio_display]
             )
+        with gr.Tab("Stock Evaluation Counsel"):
+            gr.Markdown("# Previous Evaluations")
+            stock_evaluations_display = gr.DataFrame(STOCK_EVALS)
+            start_eval_button = gr.Button("start evaluation")
+            start_eval_button.click(
+                fn = response_quaterly #to add real function
+            )
+            #Am age4ent with 2 tools: 
 
 demo.launch()
