@@ -20,12 +20,17 @@ from dotenv import load_dotenv
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.types import Command
 
+from collections import Counter
+
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
 
 
 ## Create or check if the databases exist, if not, create an empty one
+"""
+Here the system checks if any of the 3 databases exists, and if not, creates an empty one.
+"""
 
 if not os.path.exists(TRADE_LOG):
     new_dataframe = pd.DataFrame(columns=["buy_or_sell", "ticket_symbol", "number_of_stocks", "individual_price", "total_cost_trade", "date_transaction"])
@@ -44,15 +49,20 @@ if not os.path.exists(CASH_LOG):
 ##  Load of API Keys and Prompts
 load_dotenv()
 
+#Load of the prompts yaml to be loaded by the different agents
 with open("prompts.yaml", "r", encoding="utf-8") as f:
     prompts = yaml.safe_load(f)
     quarter_results_prompt = prompts["QUATERLY_RESULTS_EXPERT"]
     my_portfolio_prompt = prompts["MY_PORTFOLIO_EXPERT"]
-
+#check the prompt loaded in terminal by unlocking and changing the name of this part:
 #print(prompt)
 
 
 ##Create Retriever RAG Tool
+"""
+This created the retriever for the RAG and gives a retriever_tool to be used bxy an agent
+"""
+
 embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 vector_store = FAISS.load_local("Quaterly_Reports", embedding, allow_dangerous_deserialization=True)
 retriever = vector_store.as_retriever(
@@ -63,6 +73,31 @@ retriever_tool = create_retriever_tool(
     name="retriever_tool",
     description="Search through the document knowledge base to find relevant information."
 )
+
+## Portfolio Information Update Function:
+"""
+This is a helper function that will update the information in the portfolio database, based ont the information of the 
+trades logs database, and will organize it in a way that make sit understandable at a glamce.
+Called everytime there is a movement or change in the portfolio like cash movements, or trades.
+"""
+
+def _update_portfolio():
+    """
+    This Helper Function will update the information in the portfolio database / csv 
+    based on the current log history
+    """
+    #Get hold of both the trades log and the portfolio dataframes
+    portfolio_df = pd.read_csv(PORTFOLIO)
+    trades_df = pd.read_csv(TRADE_LOG)
+
+   # Get all the tickets existing in the log, and eliminate duplicates:
+    tickets_list = trades_df["ticket_symbol"].to_list()
+    filtered_list= [k for k, v in Counter(tickets_list).items() if v == 1]
+
+    for ticket in filtered_list:
+        pass
+    pass
+
 
 ## global add-cash tool
 def _withdraw_cash(cash_ammount : float) -> str:
@@ -352,7 +387,7 @@ def response_my_portfolio(message, history, waiting_for_approval):
 
         decision = message.lower().strip()
 
-        if decision in ["yes" , "y", "approve", "buy"]:
+        if decision in ["yes" , "y", "approve", "buy", "sell"]:
             decision = "approve"
         elif decision in ["no", "n", "reject"]:
             decision = "reject"
@@ -386,7 +421,7 @@ def response_my_portfolio(message, history, waiting_for_approval):
 
             approval_message = (
                 f"⚠️ **Approval Required** ⚠️\n\n"
-                f"The agent wants BUY stock\n"
+                f"The agent wants BUY or SELL stock\n"
                 f"Do you approve? (yes/no)"
                 )
 
@@ -401,15 +436,20 @@ with gr.Blocks() as demo:
     with gr.Tabs():
 
         with gr.Tab("Quaterly Reports Expert"):
+            gr.Markdown("# Quaterly Results Agent") 
             gr.ChatInterface(
                 fn=response_quaterly
             )
 
         with gr.Tab("Trade Assistant"):
+            gr.Markdown("# Your Portfolio") 
+            gr.DataFrame(PORTFOLIO)
+            gr.Markdown("## Manage your Portfolio:") 
             gr.ChatInterface(
                 fn=response_my_portfolio,
                 additional_inputs=[waiting_for_approval_state],
                 additional_outputs=[waiting_for_approval_state]
             )
+            # TODO Create a table that shows the quantity of each stock + cash and gives a % of each
 
 demo.launch()
