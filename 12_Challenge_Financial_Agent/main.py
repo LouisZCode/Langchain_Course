@@ -24,6 +24,9 @@ from collections import Counter
 
 from typing import TypedDict, NotRequired
 
+from langchain_mcp_adapters.client import MultiServerMCPClient
+import asyncio
+
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
@@ -433,13 +436,32 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
 ## Get real market data from the Market
 # https://www.alphavantage.co/
 
-# TODO understand how to get the data from markets using an API and add it to the Portfolio.
-# Add a current price that updates and use it to get a P&L estimate.
+async def load_mcp_tools():
+    api_key = os.getenv("ALPHAVANTAGE_API_KEY")
+    
+    if not api_key:
+        raise ValueError("ALPHAVANTAGE_API_KEY not found in environment!")
+    
+    mcp_client = MultiServerMCPClient({
+        "alphavantage": {
+            "transport": "stdio",
+            "command": "uvx",
+            "args": ["av-mcp", api_key]  # ← Now it's a string, not None
+        }
+    })
+    
+    tools = await mcp_client.get_tools()
+    return tools
+
+# Get tools
+alphavantage_tools = asyncio.run(load_mcp_tools())
 
 ##Add allinfo to agent
 class FinancialInformation(TypedDict):
     financials: str
     growth: str
+    price: str
+    price_to_earnings: str
     recommendation: str
     reason: str
 
@@ -447,7 +469,7 @@ openai_finance_boy = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool],
+    tools=[retriever_tool, *alphavantage_tools],
     response_format=FinancialInformation
 )
 
@@ -456,17 +478,17 @@ anthropic_finance_boy = create_agent(
     model="anthropic:claude-haiku-4-5",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool],
+    tools=[retriever_tool, *alphavantage_tools],
     response_format=FinancialInformation
 )
 
-google_finance_boy = create_agent(
+""" google_finance_boy = create_agent(
     model="google_genai:gemini-2.5-flash-lite",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool],
+    tools=[retriever_tool, *alphavantage_tools],
     response_format=FinancialInformation
-)
+) """
 
 
 my_portfolio_agent = create_agent(
@@ -498,34 +520,34 @@ my_portfolio_agent = create_agent(
 
 
 ##Gradio-ing
+
 """
 Agent that reads the vector stores, and gives you info about the quaterly information
 """
-
-def response_quaterly(message, history):
+async def response_quaterly(message, history):
 
     responses= []
 
-    response_openai = openai_finance_boy.invoke(
+    response_openai = await openai_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
 
     responses.append(response_openai["messages"][-1].content)
 
-    response_claude = anthropic_finance_boy.invoke(
+    response_claude = await anthropic_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
 
     responses.append(response_claude["messages"][-1].content)
 
-    response_gemini = google_finance_boy.invoke(
+    """response_gemini = await google_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
 
-    responses.append(response_gemini["messages"][-1].content)
+    responses.append(response_gemini["messages"][-1].content) """
 
     return responses
 

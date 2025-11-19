@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "asyncio>=4.0.0",
     "faiss-cpu>=1.13.0",
     "gradio>=5.49.1",
     "langchain>=1.0.7",
@@ -12,6 +13,7 @@ dependencies = [
     "langchain-community>=0.4.1",
     "langchain-google-genai>=3.1.0",
     "langchain-huggingface>=1.0.1",
+    "langchain-mcp-adapters>=0.1.13",
     "langchain-ollama>=1.0.0",
     "langchain-openai>=1.0.3",
     "langchain-text-splitters>=1.0.0",
