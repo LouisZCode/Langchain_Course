@@ -20,12 +20,13 @@ from dotenv import load_dotenv
 from langchain.agents.middleware import HumanInTheLoopMiddleware
 from langgraph.types import Command
 
-from collections import Counter
-
 from typing import TypedDict, NotRequired
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
+
+import json
+import re
 
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
@@ -196,6 +197,34 @@ def _update_portfolio_info(trade_log_path=TRADE_LOG, portfolio_path=PORTFOLIO, c
 
     # Save to CSV
     portfolio_df.to_csv(portfolio_path, index=False)
+
+"""
+This is a helper function that will clean the answers form the open_ai, Claude and different LLMS into the same format,
+so it is better digested by the "councel"
+"""
+
+def _extract_structured_data(response_content):
+    """
+    Extract structured data from LLM response, handling different formats.
+    
+    Works for:
+    - OpenAI: '{"financials":"Strong",...}'
+    - Claude: "Returning structured response: {'financials': 'Strong',...}"
+    """
+    # Remove prefix if present
+    content = response_content.replace("Returning structured response:", "").strip()
+    
+    # Try to find JSON object (handles both single and double quotes)
+    json_match = re.search(r'\{[^}]+\}', content)
+    
+    if json_match:
+        json_str = json_match.group(0)
+        # Replace single quotes with double quotes for valid JSON
+        json_str = json_str.replace("'", '"')
+        return json.loads(json_str)
+    
+    # Fallback: try direct parse
+    return json.loads(content)
 
 
 
@@ -460,7 +489,9 @@ alphavantage_tools = asyncio.run(load_mcp_tools())
 class FinancialInformation(TypedDict):
     financials: str
     growth: str
-    price: str
+    lower_stock_price : str
+    higher_stock_price : str
+    price_description: str
     price_to_earnings: str
     recommendation: str
     reason: str
@@ -483,7 +514,7 @@ anthropic_finance_boy = create_agent(
 )
 
 """ google_finance_boy = create_agent(
-    model="google_genai:gemini-2.5-flash-lite",
+    model="google_genai:gemini-2.5-pro",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
     tools=[retriever_tool, *alphavantage_tools],
@@ -510,7 +541,6 @@ my_portfolio_agent = create_agent(
             )
         ])
 
-# TODO use an API to get the Gemini 3 Pro as one of the panelist and test it
 
 # TODO Agent that recommends or not different stocks (Multi Agent panel) and saves in a csv: Buy-Hold-Sell based on finantials
 #and based on the current price action of the company:  A.k.a. access to finantial data.
@@ -526,22 +556,35 @@ Agent that reads the vector stores, and gives you info about the quaterly inform
 """
 async def response_quaterly(message, history):
 
+    #Make a concensus logic and give that instead of this:
     responses= []
 
+    #OPENAI Research
     response_openai = await openai_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
+    data_openai = _extract_structured_data(response_openai["messages"][-1].content)
+    print(f"OpenAi Says:{data_openai}")
+    print(f"OpenAI recommends:{data_openai["recommendation"]}\n\n")
+    
+    responses.append(data_openai)
 
-    responses.append(response_openai["messages"][-1].content)
 
+    #CLAUDE Research
     response_claude = await anthropic_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
+    data_claude = _extract_structured_data(response_claude["messages"][-1].content)
+    print(f"Claude says: {data_claude}")
+    print(f"Claude recommends:{data_claude["recommendation"]}\n\n")
 
-    responses.append(response_claude["messages"][-1].content)
+    responses.append(data_claude)
 
+
+
+    #Gemini Research
     """response_gemini = await google_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
@@ -549,7 +592,7 @@ async def response_quaterly(message, history):
 
     responses.append(response_gemini["messages"][-1].content) """
 
-    return responses
+    return f"{responses}"
 
    
 """
@@ -613,13 +656,15 @@ _update_portfolio_info()
 
 with gr.Blocks() as demo:
     with gr.Tabs():
-
-        with gr.Tab("Quaterly Reports Expert"):
-            gr.Markdown("# Quaterly Results Agent") 
+        
+        #Stock Evaluation Tab, saved into stock_evaluation.csv
+        with gr.Tab("Stock Research Counsel"):
+            gr.Markdown("# The Stock Councel's Panel") 
             gr.ChatInterface(
                 fn=response_quaterly
             )
 
+        #Manages and takes action on the current portfolio
         with gr.Tab("Trade Assistant"):
             gr.Markdown("# Your Portfolio") 
             portfolio_display = gr.DataFrame(PORTFOLIO)
@@ -629,13 +674,17 @@ with gr.Blocks() as demo:
                 additional_inputs=[waiting_for_approval_state],
                 additional_outputs=[waiting_for_approval_state, portfolio_display]
             )
-        with gr.Tab("Stock Evaluation Counsel"):
-            gr.Markdown("# Previous Evaluations")
-            stock_evaluations_display = gr.DataFrame(STOCK_EVALS)
-            start_eval_button = gr.Button("start evaluation")
-            start_eval_button.click(
-                fn = response_quaterly #to add real function
+
+        with gr.Tab("Find Opportunities"):
+            gr.Markdown("# Decide What to Buy.. or not to...")
+            gr.Markdown("## Decide Your Risk Tolerance:") 
+            gr.Dropdown(
+                label="Rick Tolerance",
+                interactive=True,
+                choices=["Y.O.L.O", "I tolerate a lot of RISK", "I tolerate little risk", "Lets take NO risks", "I'm Too Young to Die"]
+                )
+            gr.ChatInterface(
+                fn=response_quaterly  #Temp while building
             )
-            #Am age4ent with 2 tools: 
 
 demo.launch()
