@@ -25,8 +25,7 @@ from typing import TypedDict, NotRequired
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
 
-import json
-import re
+import random
 
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
@@ -465,25 +464,36 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
 ## Get real market data from the Market
 # https://www.alphavantage.co/
 
-async def load_mcp_tools():
-    api_key = os.getenv("ALPHAVANTAGE_API_KEY")
-    
-    if not api_key:
-        raise ValueError("ALPHAVANTAGE_API_KEY not found in environment!")
-    
-    mcp_client = MultiServerMCPClient({
-        "alphavantage": {
-            "transport": "stdio",
-            "command": "uvx",
-            "args": ["av-mcp", api_key]  # ← Now it's a string, not None
-        }
-    })
-    
-    tools = await mcp_client.get_tools()
-    return tools
+@tool(
+    "stock_market_data",
+    parse_docstring=True,
+    description="gives you the stock market prices necessary to answer, alongside the p/e ratio of the company"
+)
+def get_stock_market_data(ticket_symbol : str) -> str:
+    """
+    Description:
+        Gets you the lowest and highest price of a stock in the last 2 years and the pe ratio
 
-# Get tools
-alphavantage_tools = asyncio.run(load_mcp_tools())
+    Args:
+        ticket_symbol (str): The ticket symbol to research
+
+    Returns:
+        ticket symbols highest and lowest price in the lasz 2 years, plus the pe ratio
+
+    Raises:
+        If there is not wnough information about the symbol and or an error in the API Call
+    """
+
+    ticket_symbol = ticket_symbol.upper()
+    #Sadly, API calls are only 25 per day, so will be using mocking data for this exercise:
+    lower_price = random.randint(10 , 200)
+    higher_price = random.randint(201 , 500)
+
+    pe_ratio = random.randint(10 , 40)
+
+    return f"the ticket symbol {ticket_symbol} has a lowest price of {lower_price}, and highest of {higher_price}, with a pe ratio of {pe_ratio} times per sales"
+
+
 
 ##Add allinfo to agent
 class FinancialInformation(TypedDict):
