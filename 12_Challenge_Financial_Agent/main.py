@@ -25,7 +25,9 @@ from typing import TypedDict, NotRequired
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import asyncio
 
+import re
 import random
+import json
 
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
@@ -469,7 +471,7 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
     parse_docstring=True,
     description="gives you the stock market prices necessary to answer, alongside the p/e ratio of the company"
 )
-def get_stock_market_data(ticket_symbol : str) -> str:
+def stock_market_data(ticket_symbol : str) -> str:
     """
     Description:
         Gets you the lowest and highest price of a stock in the last 2 years and the pe ratio
@@ -510,7 +512,7 @@ openai_finance_boy = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, *alphavantage_tools],
+    tools=[retriever_tool, stock_market_data],
     response_format=FinancialInformation
 )
 
@@ -519,7 +521,7 @@ anthropic_finance_boy = create_agent(
     model="anthropic:claude-haiku-4-5",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, *alphavantage_tools],
+    tools=[retriever_tool, stock_market_data],
     response_format=FinancialInformation
 )
 
@@ -527,7 +529,7 @@ anthropic_finance_boy = create_agent(
     model="google_genai:gemini-2.5-pro",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, *alphavantage_tools],
+    tools=[retriever_tool, stock_market_data],
     response_format=FinancialInformation
 ) """
 
