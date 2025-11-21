@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asyncio>=4.0.0",
+    "edgartools>=4.29.0",
     "faiss-cpu>=1.13.0",
     "gradio>=5.49.1",
     "langchain>=1.0.7",
@@ -22,6 +23,7 @@ dependencies = [
     "pymupdf>=1.26.6",
     "python-dotenv>=1.2.1",
     "pyyaml>=6.0.3",
+    "sec-edgar-downloader>=5.0.3",
     "sentence-transformers>=5.1.2",
     "tabulate>=0.9.0",
 ]
