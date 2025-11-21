@@ -36,7 +36,7 @@ CASH_LOG = "my_cash.csv"
 STOCK_EVALS = "stock_evaluations.csv"
 
 
-# region Create or check if the databases exist, if not, create an empty one
+# region Create Databases CSVs  exist, if not create an empty one
 """
 Here the system checks if any of the 3 databases exists, and if not, creates an empty one.
 """
@@ -60,7 +60,7 @@ if not os.path.exists(STOCK_EVALS):
 
 # endregion
 
-# region  Load of API Keys and Prompts
+# region Load of API Keys and Prompts
 load_dotenv()
 
 #Load of the prompts yaml to be loaded by the different agents
@@ -91,7 +91,7 @@ retriever_tool = create_retriever_tool(
 
 # endregion
 
-# region Portfolio Information Update Function:
+# region Portfolio Information Update Function
 """
 This is a helper function that will update the information in the portfolio database, based ont the information of the 
 trades logs database, and will organize it in a way that make sit understandable at a glamce.
@@ -509,8 +509,46 @@ def stock_market_data(ticket_symbol : str) -> str:
 
 # endregion
 
-# region Add allinfo to agent
+# region Tools for Councel
+
+def _save_stock_evals(ticket_symbol : str, recommendations_list : list, price : float, p_e : float, selected_reason : str) -> str:
+    """
+    Description:
+        Saves the stock evals in a csv file
+
+    Args:
+        ticket_symbol (str): The ticket symbol to research
+        recommendations_list (list): The list of recommendations
+        price (float): The price of the stock
+        p_e (float): The p/e ratio of the stock
+        selected_reason (str): The reason for the recommendation
+
+    Returns:
+        Lets the user know a new sell has been done and gives the details of that new transaction
+
+    Raises:
+        Lets the user know if there is a lack of information to create this transaction
+    """
+    df = pd.read_csv(STOCK_EVALS)
+    new_row = pd.DataFrame({
+        "stock": [ticket_symbol],
+        "concensus": [recommendations_list.count("Buy")],
+        "financial_stability": [recommendations_list.count("Sell")],
+        "growth": [recommendations_list.count("Hold")],
+        "price": [price],
+        "p/e": [p_e],
+        "one_sentence_reasoning": [selected_reason]
+    })
+    df = pd.concat([df, new_row], ignore_index=True)
+    df.to_csv(STOCK_EVALS, index=False)
+
+    return f"New stock eval saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'recommendations_list': {recommendations_list}\n'price': {price}\n'p_e': {p_e}\n'selected_reason': {selected_reason}."
+
+# endregion
+
+# region Add all info to agents
 class FinancialInformation(TypedDict):
+    stock: str
     financials: str
     growth: str
     lower_stock_price : str
@@ -566,8 +604,6 @@ my_portfolio_agent = create_agent(
         ])
 
 
-# TODO Agent that recommends or not different stocks (Multi Agent panel) and saves in a csv: Buy-Hold-Sell based on finantials
-#and based on the current price action of the company:  A.k.a. access to finantial data.
 # TODO This agent saves the information in a csv and shows it. gets the info form 2 years and shows a 10-25-50 % disscount, and
 #if it is a good, bad and X price for the ticket.
 
@@ -623,6 +659,10 @@ async def response_quaterly(message, history):
     reasons_list = [AI1_reason, AI2_reason, AI3_reason]
 
     selected_reason = random.choice(reasons_list)
+
+    ticket_symbol = data_openai["stock"]
+
+    _save_stock_evals(ticket_symbol, recommendations_list, price, p_e, selected_reason)
 
     if recommendations_list.count("Buy") >= 2:
         return f"The councel of LLMS recommends to BUY this stock, the reason:\n{selected_reason}"

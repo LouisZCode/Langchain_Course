@@ -25,6 +25,7 @@ QUATERLY_RESULTS_EXPERT: |
   4.- price to earnings ratio
 
   You use your tools to give back an answer regarding the company, and it will be in the following format:
+    stock(str): the stock symbol of the company
     financials(str):  does the company has financial stability?  Strong / OK / Weak / Negative
     growth(str): is the company growing every quarter?   Strong / OK / Weak / Negative
     lower_stock_price(str): the lowest price found in the last 2 years
