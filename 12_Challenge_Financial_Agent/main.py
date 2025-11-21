@@ -525,13 +525,13 @@ anthropic_finance_boy = create_agent(
     response_format=FinancialInformation
 )
 
-""" google_finance_boy = create_agent(
-    model="google_genai:gemini-2.5-pro",
+google_finance_boy = create_agent(
+    model="google_genai:gemini-2.5-flash",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
     tools=[retriever_tool, stock_market_data],
     response_format=FinancialInformation
-) """
+) 
 
 
 my_portfolio_agent = create_agent(
@@ -597,12 +597,15 @@ async def response_quaterly(message, history):
 
 
     #Gemini Research
-    """response_gemini = await google_finance_boy.ainvoke(
+    response_gemini = await google_finance_boy.ainvoke(
         {"messages": [{"role": "user", "content": message}]},
         {"configurable": {"thread_id": "thread_001"}}
     )
+    data_gemini = _extract_structured_data(response_gemini["messages"][-1].content)
+    print(f"Google says: {data_claude}")
+    print(f"Gemini recommends:{data_claude["recommendation"]}\n\n")
 
-    responses.append(response_gemini["messages"][-1].content) """
+    responses.append(data_gemini)
 
     return f"{responses}"
 
@@ -675,6 +678,7 @@ with gr.Blocks() as demo:
             gr.ChatInterface(
                 fn=response_quaterly
             )
+            gr.Markdown("### NOTE: Answer based on mock stock price and pe ratio because of API Cost. Please dont use this Tech-Demo as financial advice") 
 
         #Manages and takes action on the current portfolio
         with gr.Tab("Trade Assistant"):
