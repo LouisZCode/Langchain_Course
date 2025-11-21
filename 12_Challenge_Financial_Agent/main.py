@@ -36,7 +36,7 @@ CASH_LOG = "my_cash.csv"
 STOCK_EVALS = "stock_evaluations.csv"
 
 
-# region Create Databases CSVs  exist, if not create an empty one
+## region Create Databases CSVs  exist, if not create an empty one
 """
 Here the system checks if any of the 3 databases exists, and if not, creates an empty one.
 """
@@ -54,13 +54,13 @@ if not os.path.exists(CASH_LOG):
     new_dataframe.to_csv(CASH_LOG, index=False)
 
 if not os.path.exists(STOCK_EVALS):
-    new_dataframe = pd.DataFrame(columns=["stock", "concensus", "financial_stability", "growth", "price", "p/e", "one_sentence_reasoning"])
+    new_dataframe = pd.DataFrame(columns=["stock", "LLM_1", "LLM_2", "LLM_3", "price", "price_description", "p/e", "one_sentence_reasoning"])
     new_dataframe.to_csv(STOCK_EVALS, index=False)
    
 
 # endregion
 
-# region Load of API Keys and Prompts
+##  Load of API Keys and Prompts
 load_dotenv()
 
 #Load of the prompts yaml to be loaded by the different agents
@@ -73,7 +73,7 @@ with open("prompts.yaml", "r", encoding="utf-8") as f:
 
 # endregion
 
-# region Create Retriever RAG Tool
+##  Create Retriever RAG Tool
 """
 This created the retriever for the RAG and gives a retriever_tool to be used bxy an agent
 """
@@ -91,7 +91,7 @@ retriever_tool = create_retriever_tool(
 
 # endregion
 
-# region Portfolio Information Update Function
+##  Portfolio Information Update Function
 """
 This is a helper function that will update the information in the portfolio database, based ont the information of the 
 trades logs database, and will organize it in a way that make sit understandable at a glamce.
@@ -242,7 +242,7 @@ def _extract_structured_data(response_content):
 
 # endregion
 
-# region cash management functions and tools
+##  cash management functions and tools
 def _withdraw_cash(cash_ammount : float) -> str:
     df = pd.read_csv(CASH_LOG)
     cash_column_total = df["cash_ammount"].sum()
@@ -363,7 +363,7 @@ def cash_position_count() -> str:
 
 # endregion
 
-# region Tools for Trades Agent
+## region Tools for Trades Agent
 @tool(
     "read_my_portfolio",
     parse_docstring=True,
@@ -509,9 +509,9 @@ def stock_market_data(ticket_symbol : str) -> str:
 
 # endregion
 
-# region Tools for Councel
+## region Tools for Councel
 
-def _save_stock_evals(ticket_symbol : str, recommendations_list : list, price : float, p_e : float, selected_reason : str) -> str:
+def _save_stock_evals(ticket_symbol : str, LLM_1 : str, LLM_2 : str, LLM_3 : str, price : float, price_description : str,  p_e : str, selected_reason : str) -> str:
     """
     Description:
         Saves the stock evals in a csv file
@@ -529,24 +529,27 @@ def _save_stock_evals(ticket_symbol : str, recommendations_list : list, price : 
     Raises:
         Lets the user know if there is a lack of information to create this transaction
     """
+    
+
     df = pd.read_csv(STOCK_EVALS)
     new_row = pd.DataFrame({
         "stock": [ticket_symbol],
-        "concensus": [recommendations_list.count("Buy")],
-        "financial_stability": [recommendations_list.count("Sell")],
-        "growth": [recommendations_list.count("Hold")],
+        "LLM_1": [LLM_1],
+        "LLM_2" :[LLM_2],
+        "LLM_3" : [LLM_3],
         "price": [price],
+        "price_description": [price_description],
         "p/e": [p_e],
         "one_sentence_reasoning": [selected_reason]
     })
     df = pd.concat([df, new_row], ignore_index=True)
     df.to_csv(STOCK_EVALS, index=False)
 
-    return f"New stock eval saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'recommendations_list': {recommendations_list}\n'price': {price}\n'p_e': {p_e}\n'selected_reason': {selected_reason}."
+    return "Succcessfully saved the stock recommendation into the stock evaluations database"
 
 # endregion
 
-# region Add all info to agents
+##  Add all info to agents
 class FinancialInformation(TypedDict):
     stock: str
     financials: str
@@ -609,13 +612,12 @@ my_portfolio_agent = create_agent(
 
 # endregion
 
-# region Gradio-ing
+## region Gradio-ing
 
 """
 Agent that reads the vector stores, and gives you info about the quaterly information
 """
 async def response_quaterly(message, history):
-
 
     #OPENAI Research
     response_openai = await openai_finance_boy.ainvoke(
@@ -655,23 +657,43 @@ async def response_quaterly(message, history):
     AI2_reason = data_claude["reason"]
     AI3_reason = data_gemini["reason"]
 
+    AI1_price = data_openai["higher_stock_price"]
+    AI2_price = data_claude["higher_stock_price"]
+    AI3_price = data_gemini["higher_stock_price"]
+
+    AI1_pri_de = data_openai["price_description"]
+    AI2_pri_de = data_claude["price_description"]
+    AI3_pri_de = data_gemini["price_description"]
+
+
+    AI1_pe = data_openai["price_to_earnings"]
+    AI2_pe = data_claude["price_to_earnings"]
+    AI3_pe = data_gemini["price_to_earnings"]
+
+
     recommendations_list = [AI1, AI2, AI3]
     reasons_list = [AI1_reason, AI2_reason, AI3_reason]
+    price_list = [AI1_price, AI2_price, AI3_price]
+    price = random.choice(price_list)
+    p_e_list = [AI1_pe, AI2_pe, AI3_pe]
+    p_e = random.choice(p_e_list)
+    price_des_list = [AI1_pri_de, AI2_pri_de, AI3_pri_de]
+    price_description = random.choice(price_des_list)
 
     selected_reason = random.choice(reasons_list)
 
     ticket_symbol = data_openai["stock"]
 
-    _save_stock_evals(ticket_symbol, recommendations_list, price, p_e, selected_reason)
+    saved_database = _save_stock_evals(ticket_symbol, AI1, AI2, AI3, price, price_description,  p_e, selected_reason)
 
     if recommendations_list.count("Buy") >= 2:
-        return f"The councel of LLMS recommends to BUY this stock, the reason:\n{selected_reason}"
+        return f"The councel of LLMS recommends to BUY this stock, the reason:\n\n{selected_reason}\n\n{saved_database}"
 
     elif recommendations_list.count("Sell") >= 2:
-        return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}"
+        return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}\n\n{saved_database}"
 
     else:
-        return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}"
+        return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
 
    
 """
@@ -740,7 +762,8 @@ with gr.Blocks() as demo:
         with gr.Tab("Stock Research Counsel"):
             gr.Markdown("# The Stock Councel's Panel") 
             gr.ChatInterface(
-                fn=response_quaterly
+                fn=response_quaterly,
+                type="messages"
             )
             gr.Markdown("### NOTE: Answer based on mock stock price and pe ratio because of API Cost. Please dont use this Tech-Demo as financial advice") 
 
@@ -752,7 +775,8 @@ with gr.Blocks() as demo:
             gr.ChatInterface(
                 fn=response_my_portfolio,
                 additional_inputs=[waiting_for_approval_state],
-                additional_outputs=[waiting_for_approval_state, portfolio_display]
+                additional_outputs=[waiting_for_approval_state, portfolio_display],
+                type="messages"
             )
 
         with gr.Tab("Find Opportunities"):
@@ -764,7 +788,8 @@ with gr.Blocks() as demo:
                 choices=["Y.O.L.O", "I tolerate a lot of RISK", "I tolerate little risk", "Lets take NO risks", "I'm Too Young to Die"]
                 )
             gr.ChatInterface(
-                fn=response_quaterly  #Temp while building
+                fn=response_quaterly,   #Temp while building
+                type="messages"
             )
 
 demo.launch()
