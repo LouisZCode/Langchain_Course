@@ -36,7 +36,7 @@ CASH_LOG = "my_cash.csv"
 STOCK_EVALS = "stock_evaluations.csv"
 
 
-## Create or check if the databases exist, if not, create an empty one
+# region Create or check if the databases exist, if not, create an empty one
 """
 Here the system checks if any of the 3 databases exists, and if not, creates an empty one.
 """
@@ -58,7 +58,9 @@ if not os.path.exists(STOCK_EVALS):
     new_dataframe.to_csv(STOCK_EVALS, index=False)
    
 
-##  Load of API Keys and Prompts
+# endregion
+
+# region  Load of API Keys and Prompts
 load_dotenv()
 
 #Load of the prompts yaml to be loaded by the different agents
@@ -69,8 +71,9 @@ with open("prompts.yaml", "r", encoding="utf-8") as f:
 #check the prompt loaded in terminal by unlocking and changing the name of this part:
 #print(prompt)
 
+# endregion
 
-##Create Retriever RAG Tool
+# region Create Retriever RAG Tool
 """
 This created the retriever for the RAG and gives a retriever_tool to be used bxy an agent
 """
@@ -86,7 +89,9 @@ retriever_tool = create_retriever_tool(
     description="Search through the document knowledge base to find relevant information."
 )
 
-## Portfolio Information Update Function:
+# endregion
+
+# region Portfolio Information Update Function:
 """
 This is a helper function that will update the information in the portfolio database, based ont the information of the 
 trades logs database, and will organize it in a way that make sit understandable at a glamce.
@@ -235,9 +240,9 @@ def _extract_structured_data(response_content):
     except:
         return {} # Return empty dict or handle error gracefully
 
+# endregion
 
-
-## cash management functions and tools
+# region cash management functions and tools
 def _withdraw_cash(cash_ammount : float) -> str:
     df = pd.read_csv(CASH_LOG)
     cash_column_total = df["cash_ammount"].sum()
@@ -356,8 +361,9 @@ def cash_position_count() -> str:
 
     return f"the user has {cash_column_total} available usd"
 
+# endregion
 
-## Tools for Trades Agent
+# region Tools for Trades Agent
 @tool(
     "read_my_portfolio",
     parse_docstring=True,
@@ -471,8 +477,6 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
     
     return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_sold': {individual_price_sold}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_sold}. The cash already was added to the cash balance"
 
-## Get real market data from the Market
-# https://www.alphavantage.co/
 
 @tool(
     "stock_market_data",
@@ -503,9 +507,9 @@ def stock_market_data(ticket_symbol : str) -> str:
 
     return f"the ticket symbol {ticket_symbol} has a lowest price of {lower_price}, and highest of {higher_price}, with a pe ratio of {pe_ratio} times per sales"
 
+# endregion
 
-
-##Add allinfo to agent
+# region Add allinfo to agent
 class FinancialInformation(TypedDict):
     financials: str
     growth: str
@@ -567,9 +571,9 @@ my_portfolio_agent = create_agent(
 # TODO This agent saves the information in a csv and shows it. gets the info form 2 years and shows a 10-25-50 % disscount, and
 #if it is a good, bad and X price for the ticket.
 
+# endregion
 
-
-##Gradio-ing
+# region Gradio-ing
 
 """
 Agent that reads the vector stores, and gives you info about the quaterly information
@@ -724,3 +728,5 @@ with gr.Blocks() as demo:
             )
 
 demo.launch()
+
+# endregion
