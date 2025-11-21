@@ -28,6 +28,7 @@ import asyncio
 import re
 import random
 import json
+import ast
 
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
@@ -212,20 +213,27 @@ def _extract_structured_data(response_content):
     - OpenAI: '{"financials":"Strong",...}'
     - Claude: "Returning structured response: {'financials': 'Strong',...}"
     """
-    # Remove prefix if present
     content = response_content.replace("Returning structured response:", "").strip()
-    
-    # Try to find JSON object (handles both single and double quotes)
+    # Try to find JSON object
     json_match = re.search(r'\{[^}]+\}', content)
     
     if json_match:
         json_str = json_match.group(0)
-        # Replace single quotes with double quotes for valid JSON
-        json_str = json_str.replace("'", '"')
-        return json.loads(json_str)
+        try:
+            # First try standard JSON (double quotes)
+            return json.loads(json_str)
+        except json.JSONDecodeError:
+            # If that fails, try Python literal syntax (single quotes)
+            try:
+                return ast.literal_eval(json_str)
+            except (ValueError, SyntaxError):
+                pass # Fallback
     
-    # Fallback: try direct parse
-    return json.loads(content)
+    # Fallback
+    try:
+        return json.loads(content)
+    except:
+        return {} # Return empty dict or handle error gracefully
 
 
 
@@ -568,8 +576,6 @@ Agent that reads the vector stores, and gives you info about the quaterly inform
 """
 async def response_quaterly(message, history):
 
-    #Make a concensus logic and give that instead of this:
-    responses= []
 
     #OPENAI Research
     response_openai = await openai_finance_boy.ainvoke(
@@ -579,8 +585,6 @@ async def response_quaterly(message, history):
     data_openai = _extract_structured_data(response_openai["messages"][-1].content)
     print(f"OpenAi Says:{data_openai}")
     print(f"OpenAI recommends:{data_openai["recommendation"]}\n\n")
-    
-    responses.append(data_openai)
 
 
     #CLAUDE Research
@@ -592,9 +596,6 @@ async def response_quaterly(message, history):
     print(f"Claude says: {data_claude}")
     print(f"Claude recommends:{data_claude["recommendation"]}\n\n")
 
-    responses.append(data_claude)
-
-
 
     #Gemini Research
     response_gemini = await google_finance_boy.ainvoke(
@@ -605,9 +606,28 @@ async def response_quaterly(message, history):
     print(f"Google says: {data_claude}")
     print(f"Gemini recommends:{data_claude["recommendation"]}\n\n")
 
-    responses.append(data_gemini)
 
-    return f"{responses}"
+    AI1 = data_openai["recommendation"]
+    AI2 = data_claude["recommendation"]
+    AI3 = data_gemini["recommendation"]
+
+    AI1_reason = data_openai["reason"]
+    AI2_reason = data_claude["reason"]
+    AI3_reason = data_gemini["reason"]
+
+    recommendations_list = [AI1, AI2, AI3]
+    reasons_list = [AI1_reason, AI2_reason, AI3_reason]
+
+    selected_reason = random.choice(reasons_list)
+
+    if recommendations_list.count("Buy") >= 2:
+        return f"The councel of LLMS recommends to BUY this stock, the reason:\n{selected_reason}"
+
+    elif recommendations_list.count("Sell") >= 2:
+        return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}"
+
+    else:
+        return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}"
 
    
 """
