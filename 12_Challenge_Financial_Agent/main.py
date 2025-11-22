@@ -40,6 +40,7 @@ from langchain_community.vectorstores import FAISS
 from tqdm import tqdm
 
 import time
+import asyncio
 
 
 TRADE_LOG = "trades_log.csv"
@@ -493,27 +494,11 @@ def remove_from_portfolio(ticket_symbol : str, number_of_stocks : float, individ
     return f"New trade saved with these details:\n 'ticket_symbol': {ticket_symbol}\n'number_of_stocks': {number_of_stocks}\n'individual_price_sold': {individual_price_sold}\n'total_cost_trade': {total_cost_trade}\n'date_bought': {date_sold}. The cash already was added to the cash balance"
 
 
-@tool(
-    "stock_market_data",
-    parse_docstring=True,
-    description="gives you the stock market prices necessary to answer, alongside the p/e ratio of the company"
-)
-def stock_market_data(ticket_symbol : str) -> str:
-    """
-    Description:
-        Gets you the lowest and highest price of a stock in the last 2 years and the pe ratio
 
-    Args:
-        ticket_symbol (str): The ticket symbol to research
+## Tools for Councel of LLMS
 
-    Returns:
-        ticket symbols highest and lowest price in the lasz 2 years, plus the pe ratio
-
-    Raises:
-        If there is not wnough information about the symbol and or an error in the API Call
-    """
-
-    ticket_symbol = ticket_symbol.upper()
+def _stock_market_data(ticker_symbol: str) -> str:
+    ticket_symbol = ticker_symbol.upper()
     #Sadly, API calls are only 25 per day, so will be using mocking data for this exercise:
     lower_price = random.randint(10 , 200)
     higher_price = random.randint(201 , 500)
@@ -522,9 +507,27 @@ def stock_market_data(ticket_symbol : str) -> str:
 
     return f"the ticket symbol {ticket_symbol} has a lowest price of {lower_price}, and highest of {higher_price}, with a pe ratio of {pe_ratio} times per sales"
 
-# endregion
+@tool(
+    "stock_market_data",
+    parse_docstring=True,
+    description="gives you the stock market prices necessary to answer, alongside the p/e ratio of the company"
+)
+def stock_market_data_tool(ticker_symbol : str) -> str:
+    """
+    Description:
+        Gets you the lowest and highest price of a stock in the last 2 years and the pe ratio
 
-## region Tools for Councel
+    Args:
+        ticker_symbol (str): The ticker symbol to research
+
+    Returns:
+        ticker symbols highest and lowest price in the last 2 years, plus the pe ratio
+
+    Raises:
+        If there is not wnough information about the symbol and or an error in the API Call
+    """
+
+    return _stock_market_data(ticker_symbol)
 
 def _save_stock_evals(ticket_symbol : str, LLM_1 : str, LLM_2 : str, LLM_3 : str, price : float, price_description : str,  p_e : str, selected_reason : str) -> str:
     """
@@ -666,7 +669,6 @@ def download_clean_filings(ticker, keep_files=False): # <--- Added flag
     else:
         print("No chunks were generated.")
 
-# endregion
 
 ##  Add all info to agents
 class FinancialInformation(TypedDict):
@@ -689,7 +691,7 @@ openai_finance_boy = create_agent(
     model="openai:gpt-5-mini",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, stock_market_data],
+    tools=[retriever_tool],
     response_format=FinancialInformation
 )
 
@@ -698,7 +700,7 @@ anthropic_finance_boy = create_agent(
     model="anthropic:claude-haiku-4-5",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, stock_market_data],
+    tools=[retriever_tool],
     response_format=FinancialInformation
 )
 
@@ -706,7 +708,7 @@ google_finance_boy = create_agent(
     model="google_genai:gemini-2.5-flash",
     system_prompt=quarter_results_prompt,
     checkpointer=InMemorySaver(),
-    tools=[retriever_tool, stock_market_data],
+    tools=[retriever_tool],
     response_format=FinancialInformation
 )
 
@@ -736,9 +738,12 @@ my_portfolio_agent = create_agent(
         ])
 
 
+
+
+
 # endregion
 
-## region Gradio-ing
+## LLM Councel Response Function
 
 """
 Agent that reads the vector stores, and gives you info about the quaterly information
@@ -779,15 +784,18 @@ async def response_quaterly(message, history):
         
         else:
 
-            yield "Getting data for this company from the SEC, this will take 1 minute..."
-            time.sleep(2)
+            yield "Getting data for this company from the SEC directly, this will take 1 minute..."
+            await asyncio.sleep(1)
             download_clean_filings(ticker_symbol)
             
             #OPENAI Research
             yield "Data received, now the councel with review the data and come with a veridict, just a moment..."
             time.sleep(2)
+
+            prices_pe_data = _stock_market_data(ticker_symbol)
+
             response_openai = await openai_finance_boy.ainvoke(
-                {"messages": [{"role": "user", "content": f"Research {ticker_symbol}"}]},
+                {"messages": [{"role": "user", "content": f"Research {ticker_symbol}, more info: {prices_pe_data}"}]},
                 {"configurable": {"thread_id": "thread_001"}}
             )
             data_openai = _extract_structured_data(response_openai["messages"][-1].content)
@@ -798,7 +806,7 @@ async def response_quaterly(message, history):
 
             #CLAUDE Research
             response_claude = await anthropic_finance_boy.ainvoke(
-                {"messages": [{"role": "user", "content": message}]},
+                {"messages": [{"role": "user", "content": f"Research {ticker_symbol}, more info: {prices_pe_data}"}]},
                 {"configurable": {"thread_id": "thread_001"}}
             )
             data_claude = _extract_structured_data(response_claude["messages"][-1].content)
@@ -808,7 +816,7 @@ async def response_quaterly(message, history):
 
             #Gemini Research
             response_gemini = await google_finance_boy.ainvoke(
-                {"messages": [{"role": "user", "content": message}]},
+                {"messages": [{"role": "user", "content": f"Research {ticker_symbol}, more info: {prices_pe_data}"}]},
                 {"configurable": {"thread_id": "thread_001"}}
             )
             data_gemini = _extract_structured_data(response_gemini["messages"][-1].content)
@@ -862,6 +870,7 @@ async def response_quaterly(message, history):
             else:
                 yield f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
             
+## Portfolio Manager reposne_function
    
 """
 Agent that manages the portfolio
@@ -918,6 +927,13 @@ def response_my_portfolio(message, history, waiting_for_approval):
 # TODO grab the data in the interrupt__ value, and use it to selfpopulate correctly aproval_message
 # with the stock, if it is BUY or SELL, quantity and price
 
+## Find Tailored Opportunities Agent   response function
+
+
+
+## Gradio - ing
+
+
 company_ticker_state = gr.State("")
 waiting_for_approval_state = gr.State(False)
 _update_portfolio_info()
@@ -932,7 +948,7 @@ with gr.Blocks() as demo:
                 fn=response_quaterly,
                 type="messages"
             )
-            gr.Markdown("### NOTE: Answer based on mock stock price and pe ratio because of API Cost. Please dont use this Tech-Demo as financial advice") 
+            gr.Markdown("### NOTE: Answer based on real SEC data, but on mock stock price and P/E ratio because of API Costs.\nPlease dont use this Tech-Demo as financial advice") 
 
         #Manages and takes action on the current portfolio
         with gr.Tab("Trade Assistant"):
