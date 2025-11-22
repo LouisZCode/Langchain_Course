@@ -12,7 +12,12 @@ CHECKER: |
   You have 2 possible answer to this message:
   1.- if it is clear, you anser with the ticker symbol in all caps. For example, "TSLA", or "APPL", or "PYPL".
   2.- If the company or ticker symbol is not clear, you answer 'No clear symbol or company mentioned, could you try again please?'.
-  This is your only task, and you do not help with anything else. You do not use preambles. You only answer literally with those 2 options stated before
+  This is your only task, and you do not help with anything else. You do not use preambles. You only answer literally with those 2 options stated before.
+
+EXPLAINER: |
+  You are a information explainer. You will receive a message with details about a company and each one of the
+  opinions of 3 LLMS, and reasons for the recommendations. Your job is just to repeat this information
+  so a human can nunderstand it better. Keep it without preambles.
 
 
 QUATERLY_RESULTS_EXPERT: |

@@ -32,6 +32,16 @@ import ast
 
 from edgar import set_identity, Company
 
+from langchain_community.document_loaders import UnstructuredHTMLLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+
+from tqdm import tqdm
+
+import time
+
+
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
@@ -72,6 +82,7 @@ with open("prompts.yaml", "r", encoding="utf-8") as f:
     quarter_results_prompt = prompts["QUATERLY_RESULTS_EXPERT"]
     my_portfolio_prompt = prompts["MY_PORTFOLIO_EXPERT"]
     checker_prompt = prompts["CHECKER"]
+    explainer_prompt = prompts["EXPLAINER"]
 #check the prompt loaded in terminal by unlocking and changing the name of this part:
 #print(prompt)
 
@@ -570,30 +581,90 @@ def ticker_admin_tool(ticker_symbol):
 
 def ticker_info_db(ticker_symbol):
     df = pd.read_csv(STOCK_EVALS)
-    ticker_row  = df[df["stock"] == ticker_symbol]
-
-    print (ticker_row)
+    ticker_row  = df[df["stock"] == ticker_symbol].to_markdown(index=False)
     
     return f"Here the info about {ticker_symbol}:\n{ticker_row}"
 
 
-def download_clean_filings(ticker):
-    # 2. Initialize Company
+def download_clean_filings(ticker, keep_files=False): # <--- Added flag
+    """
+    Gets filings, processes them, and saves to VectorStore.
+    keep_files=True: Saves HTMLs in 'data/' forever.
+    keep_files=False: Deletes HTMLs after processing (Clean).
+    """
+    
+    # 1. Setup
+    DATA_FOLDER = "data"
+    DB_PATH = "Quarterly_Reports_DB"
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    
+    embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    
     company = Company(ticker)
+    filings = company.get_filings(form="10-Q").latest(8)
     
-    # 3. Get only the 10-Q filings (you can also add 10-K)
-    # The 'latest=8' grabs the last 8 available reports
-    filings = company.get_filings(form="10-Q").latest(2)
-    
-    print(f"Found {len(filings)} filings for {ticker}. Downloading clean HTML...")
+    print(f"Found {len(filings)} filings for {ticker}. Processing...")
+    all_chunks = [] 
 
-    for filing in filings:
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(html_text, 'html.parser')
-        clean_text = soup.get_text()
+    # 2. Loop through filings
+    for filing in tqdm(filings, desc=f"Processing {ticker} Reports", unit="filing"):
         
-        #Now send 'clean_text' straight to your chunker/vector store
-        ingest_text_to_vector_store(clean_text, metadata={"date": filing.filing_date})
+        # --- FIX: Define ONE consistent path ---
+        # We save cleanly as: data/AAPL_2024-01-01.html
+        clean_filename = f"{ticker}_{filing.filing_date}.html"
+        full_file_path = os.path.join(DATA_FOLDER, clean_filename)
+        
+        try:
+            # A. Get HTML
+            html_content = filing.html()
+            if not html_content:
+                print(f"Skipping {filing.date}: No HTML.")
+                continue
+
+            # B. Write to the DATA folder
+            with open(full_file_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+
+            # C. Load from the DATA folder
+            loader = UnstructuredHTMLLoader(full_file_path, mode="elements")
+            docs = loader.load()
+
+            # D. Add Metadata
+            for doc in docs:
+                doc.metadata["ticker"] = ticker
+                doc.metadata["date"] = filing.filing_date
+                doc.metadata["source"] = full_file_path # Point to real file
+
+            # E. Split
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+            file_chunks = text_splitter.split_documents(docs)
+            all_chunks.extend(file_chunks)
+            
+            # (Note: We do NOT delete here anymore, we let 'finally' handle it)
+
+        except Exception as e:
+            print(f"Error processing {clean_filename}: {e}")
+
+        finally:
+            # --- LOGIC: Delete only if we don't want to keep them ---
+            if not keep_files and os.path.exists(full_file_path):
+                os.remove(full_file_path)
+                # print(f"Deleted temp file: {clean_filename}")
+
+    # 3. Create Vector Store
+    if all_chunks:
+        if os.path.exists(DB_PATH):
+            print("Appending to existing Vector Store...")
+            vector_store = FAISS.load_local(DB_PATH, embedding_model, allow_dangerous_deserialization=True)
+            vector_store.add_documents(all_chunks)
+        else:
+            print("Creating NEW Vector Store...")
+            vector_store = FAISS.from_documents(all_chunks, embedding_model)
+            
+        vector_store.save_local(DB_PATH)
+        print("Success! Vector store saved.")
+    else:
+        print("No chunks were generated.")
 
 # endregion
 
@@ -637,7 +708,12 @@ google_finance_boy = create_agent(
     checkpointer=InMemorySaver(),
     tools=[retriever_tool, stock_market_data],
     response_format=FinancialInformation
-) 
+)
+
+simple_explaining_agent = create_agent(
+    model="anthropic:claude-haiku-4-5",
+    system_prompt=explainer_prompt,
+)
 
 
 my_portfolio_agent = create_agent(
@@ -660,9 +736,6 @@ my_portfolio_agent = create_agent(
         ])
 
 
-# TODO This agent saves the information in a csv and shows it. gets the info form 2 years and shows a 10-25-50 % disscount, and
-#if it is a good, bad and X price for the ticket.
-
 # endregion
 
 ## region Gradio-ing
@@ -682,28 +755,45 @@ async def response_quaterly(message, history):
 
     if check_ticker["messages"][-1].content == 'No clear symbol or company mentioned, could you try again please?':
         print(check_ticker["messages"][-1].content)
-        return 'No clear symbol or company mentioned, could you try again please?'
+        yield "No clear symbol or company mentioned, could you try again please?"
+        return 
     
     else:
         ticker_symbol = check_ticker["messages"][-1].content
-        print(f"checker found the ticker symbol {ticker_symbol} in the users query")
+        yield f"I have found the ticker symbol {ticker_symbol} in the users query, thinking..."
+        time.sleep(1)
 
         if ticker_admin_tool(ticker_symbol):
-            return ticker_info_db(ticker_symbol)
+            yield "The councel already had researched this Ticker, gathering the info form the database..."
+            time.sleep(2)
+            #agent that explains the info:
+            ticker_info = ticker_info_db(ticker_symbol)
+
+            explainer_agent = simple_explaining_agent.invoke(
+            {"messages": [{"role": "user", "content": f"{ticker_info}"}]}
+            )
+            explainer_agent["messages"][-1].content
+
+            yield explainer_agent["messages"][-1].content
+            return
         
         else:
-             # TODO: Function to get info form the ticker into the vector_store
-                
 
+            yield "Getting data for this company from the SEC, this will take 1 minute..."
+            time.sleep(2)
+            download_clean_filings(ticker_symbol)
             
             #OPENAI Research
+            yield "Data received, now the councel with review the data and come with a veridict, just a moment..."
+            time.sleep(2)
             response_openai = await openai_finance_boy.ainvoke(
                 {"messages": [{"role": "user", "content": f"Research {ticker_symbol}"}]},
                 {"configurable": {"thread_id": "thread_001"}}
             )
             data_openai = _extract_structured_data(response_openai["messages"][-1].content)
-            print(f"OpenAi Says:{data_openai}")
-            print(f"OpenAI recommends: {data_openai["recommendation"]}\n\n")
+            #print(f"OpenAi Says:{data_openai}")
+            yield f"OpenAI recommends: {data_openai["recommendation"]}\n\n"
+            time.sleep(2)
 
 
             #CLAUDE Research
@@ -713,7 +803,7 @@ async def response_quaterly(message, history):
             )
             data_claude = _extract_structured_data(response_claude["messages"][-1].content)
             #print(f"Claude says: {data_claude}")
-            print(f"Claude recommends: {data_claude["recommendation"]}\n\n")
+            yield f"Claude recommends: {data_claude["recommendation"]}\n\n"
 
 
             #Gemini Research
@@ -723,7 +813,7 @@ async def response_quaterly(message, history):
             )
             data_gemini = _extract_structured_data(response_gemini["messages"][-1].content)
             #print(f"Google says: {data_claude}")
-            print(f"Gemini recommends: {data_claude["recommendation"]}\n\n")
+            yield f"Gemini recommends: {data_claude["recommendation"]}\n\n"
 
 
             AI1 = data_openai["recommendation"]
@@ -764,13 +854,13 @@ async def response_quaterly(message, history):
             saved_database = _save_stock_evals(ticket_symbol, AI1, AI2, AI3, price, price_description,  p_e, selected_reason)
 
             if recommendations_list.count("Buy") >= 2:
-                return f"The councel of LLMS recommends to BUY this stock, the reason:\n\n{selected_reason}\n\n{saved_database}"
+                yield f"The councel of LLMS recommends to BUY this stock, the reason:\n\n{selected_reason}\n\n{saved_database}"
 
             elif recommendations_list.count("Sell") >= 2:
-                return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}\n\n{saved_database}"
+                yield f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}\n\n{saved_database}"
 
             else:
-                return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
+                yield f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
             
    
 """
