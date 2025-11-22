@@ -548,6 +548,28 @@ def _save_stock_evals(ticket_symbol : str, LLM_1 : str, LLM_2 : str, LLM_3 : str
 
     return "Succcessfully saved the stock recommendation into the stock evaluations database"
 
+
+def ticker_admin_tool(ticker_symbol):
+    """
+    A function that checks if the ticker symbol requested is in the database already or not.
+    If it is, returns True, if it is not, returns False.
+    """
+    #Check the first column in db
+    df = pd.read_csv(STOCK_EVALS)
+    ticker_column  = df["stock"].values
+
+    if ticker_symbol in ticker_column:
+        print(f"The ticker symbol {ticker_symbol} its already in the db")
+        return True
+    else:
+        print(f"The ticker symbol {ticker_symbol} it not in the DB.\nGathering info from the SEC now...")
+        return False
+
+def ticker_info_db(ticker_symbol):
+    df = pd.read_csv(STOCK_EVALS)
+    
+    return f"Here the info about {ticker_symbol} "
+
 # endregion
 
 ##  Add all info to agents
@@ -639,85 +661,92 @@ async def response_quaterly(message, history):
     
     else:
         ticker_symbol = check_ticker["messages"][-1].content
-        print(f"checker found the ticker symbol {ticker_symbol}")
+        print(f"checker found the ticker symbol {ticker_symbol} in the users query")
 
+        if ticker_admin_tool(ticker_symbol):
+            return ticker_info_db(ticker_symbol)
         
-        #OPENAI Research
-        response_openai = await openai_finance_boy.ainvoke(
-            {"messages": [{"role": "user", "content": f"Research {ticker_symbol}"}]},
-            {"configurable": {"thread_id": "thread_001"}}
-        )
-        data_openai = _extract_structured_data(response_openai["messages"][-1].content)
-        print(f"OpenAi Says:{data_openai}")
-        print(f"OpenAI recommends: {data_openai["recommendation"]}\n\n")
-
-
-        #CLAUDE Research
-        response_claude = await anthropic_finance_boy.ainvoke(
-            {"messages": [{"role": "user", "content": message}]},
-            {"configurable": {"thread_id": "thread_001"}}
-        )
-        data_claude = _extract_structured_data(response_claude["messages"][-1].content)
-        #print(f"Claude says: {data_claude}")
-        print(f"Claude recommends: {data_claude["recommendation"]}\n\n")
-
-
-        #Gemini Research
-        response_gemini = await google_finance_boy.ainvoke(
-            {"messages": [{"role": "user", "content": message}]},
-            {"configurable": {"thread_id": "thread_001"}}
-        )
-        data_gemini = _extract_structured_data(response_gemini["messages"][-1].content)
-        #print(f"Google says: {data_claude}")
-        print(f"Gemini recommends: {data_claude["recommendation"]}\n\n")
-
-
-        AI1 = data_openai["recommendation"]
-        AI2 = data_claude["recommendation"]
-        AI3 = data_gemini["recommendation"]
-
-        AI1_reason = data_openai["reason"]
-        AI2_reason = data_claude["reason"]
-        AI3_reason = data_gemini["reason"]
-
-        AI1_price = data_openai["higher_stock_price"]
-        AI2_price = data_claude["higher_stock_price"]
-        AI3_price = data_gemini["higher_stock_price"]
-
-        AI1_pri_de = data_openai["price_description"]
-        AI2_pri_de = data_claude["price_description"]
-        AI3_pri_de = data_gemini["price_description"]
-
-
-        AI1_pe = data_openai["price_to_earnings"]
-        AI2_pe = data_claude["price_to_earnings"]
-        AI3_pe = data_gemini["price_to_earnings"]
-
-
-        recommendations_list = [AI1, AI2, AI3]
-        reasons_list = [AI1_reason, AI2_reason, AI3_reason]
-        price_list = [AI1_price, AI2_price, AI3_price]
-        price = random.choice(price_list)
-        p_e_list = [AI1_pe, AI2_pe, AI3_pe]
-        p_e = random.choice(p_e_list)
-        price_des_list = [AI1_pri_de, AI2_pri_de, AI3_pri_de]
-        price_description = random.choice(price_des_list)
-
-        selected_reason = random.choice(reasons_list)
-
-        ticket_symbol = data_openai["stock"]
-
-        saved_database = _save_stock_evals(ticket_symbol, AI1, AI2, AI3, price, price_description,  p_e, selected_reason)
-
-        if recommendations_list.count("Buy") >= 2:
-            return f"The councel of LLMS recommends to BUY this stock, the reason:\n\n{selected_reason}\n\n{saved_database}"
-
-        elif recommendations_list.count("Sell") >= 2:
-            return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}\n\n{saved_database}"
-
         else:
-            return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
-        
+             # TODO: Function to get info form the ticker into the vector_store
+                
+
+            
+            #OPENAI Research
+            response_openai = await openai_finance_boy.ainvoke(
+                {"messages": [{"role": "user", "content": f"Research {ticker_symbol}"}]},
+                {"configurable": {"thread_id": "thread_001"}}
+            )
+            data_openai = _extract_structured_data(response_openai["messages"][-1].content)
+            print(f"OpenAi Says:{data_openai}")
+            print(f"OpenAI recommends: {data_openai["recommendation"]}\n\n")
+
+
+            #CLAUDE Research
+            response_claude = await anthropic_finance_boy.ainvoke(
+                {"messages": [{"role": "user", "content": message}]},
+                {"configurable": {"thread_id": "thread_001"}}
+            )
+            data_claude = _extract_structured_data(response_claude["messages"][-1].content)
+            #print(f"Claude says: {data_claude}")
+            print(f"Claude recommends: {data_claude["recommendation"]}\n\n")
+
+
+            #Gemini Research
+            response_gemini = await google_finance_boy.ainvoke(
+                {"messages": [{"role": "user", "content": message}]},
+                {"configurable": {"thread_id": "thread_001"}}
+            )
+            data_gemini = _extract_structured_data(response_gemini["messages"][-1].content)
+            #print(f"Google says: {data_claude}")
+            print(f"Gemini recommends: {data_claude["recommendation"]}\n\n")
+
+
+            AI1 = data_openai["recommendation"]
+            AI2 = data_claude["recommendation"]
+            AI3 = data_gemini["recommendation"]
+
+            AI1_reason = data_openai["reason"]
+            AI2_reason = data_claude["reason"]
+            AI3_reason = data_gemini["reason"]
+
+            AI1_price = data_openai["higher_stock_price"]
+            AI2_price = data_claude["higher_stock_price"]
+            AI3_price = data_gemini["higher_stock_price"]
+
+            AI1_pri_de = data_openai["price_description"]
+            AI2_pri_de = data_claude["price_description"]
+            AI3_pri_de = data_gemini["price_description"]
+
+
+            AI1_pe = data_openai["price_to_earnings"]
+            AI2_pe = data_claude["price_to_earnings"]
+            AI3_pe = data_gemini["price_to_earnings"]
+
+
+            recommendations_list = [AI1, AI2, AI3]
+            reasons_list = [AI1_reason, AI2_reason, AI3_reason]
+            price_list = [AI1_price, AI2_price, AI3_price]
+            price = random.choice(price_list)
+            p_e_list = [AI1_pe, AI2_pe, AI3_pe]
+            p_e = random.choice(p_e_list)
+            price_des_list = [AI1_pri_de, AI2_pri_de, AI3_pri_de]
+            price_description = random.choice(price_des_list)
+
+            selected_reason = random.choice(reasons_list)
+
+            ticket_symbol = data_openai["stock"]
+
+            saved_database = _save_stock_evals(ticket_symbol, AI1, AI2, AI3, price, price_description,  p_e, selected_reason)
+
+            if recommendations_list.count("Buy") >= 2:
+                return f"The councel of LLMS recommends to BUY this stock, the reason:\n\n{selected_reason}\n\n{saved_database}"
+
+            elif recommendations_list.count("Sell") >= 2:
+                return f"The councel of LLMS recommends to SELL this stock, the reason:\n{selected_reason}\n\n{saved_database}"
+
+            else:
+                return f"The councel of LLMS recommends to HOLD this stock, the reason:\n{selected_reason}\n\n{saved_database}"
+            
    
 """
 Agent that manages the portfolio
