@@ -30,10 +30,13 @@ import random
 import json
 import ast
 
+from edgar import set_identity, Company
+
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
 CASH_LOG = "my_cash.csv"
 STOCK_EVALS = "stock_evaluations.csv"
+set_identity("Juan Perez juan.perezzgz@hotmail.com")
 
 
 ## region Create Databases CSVs  exist, if not create an empty one
@@ -567,8 +570,30 @@ def ticker_admin_tool(ticker_symbol):
 
 def ticker_info_db(ticker_symbol):
     df = pd.read_csv(STOCK_EVALS)
+    ticker_row  = df[df["stock"] == ticker_symbol]
+
+    print (ticker_row)
     
-    return f"Here the info about {ticker_symbol} "
+    return f"Here the info about {ticker_symbol}:\n{ticker_row}"
+
+
+def download_clean_filings(ticker):
+    # 2. Initialize Company
+    company = Company(ticker)
+    
+    # 3. Get only the 10-Q filings (you can also add 10-K)
+    # The 'latest=8' grabs the last 8 available reports
+    filings = company.get_filings(form="10-Q").latest(2)
+    
+    print(f"Found {len(filings)} filings for {ticker}. Downloading clean HTML...")
+
+    for filing in filings:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html_text, 'html.parser')
+        clean_text = soup.get_text()
+        
+        #Now send 'clean_text' straight to your chunker/vector store
+        ingest_text_to_vector_store(clean_text, metadata={"date": filing.filing_date})
 
 # endregion
 
