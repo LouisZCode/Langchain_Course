@@ -586,7 +586,7 @@ def ticker_admin_tool(ticker_symbol):
 
 def ticker_info_db(ticker_symbol):
     df = pd.read_csv(STOCK_EVALS)
-    if  df[df['task_id'] == 'abc12'].empty:
+    if df[df['stock'] == ticker_symbol].empty:
         return f"We do not have information about {ticker_symbol} in the Database. Ask user to go to the Councel of LLMs"
     else:
         ticker_row  = df[df["stock"] == ticker_symbol].to_markdown(index=False)
@@ -1042,8 +1042,8 @@ with gr.Blocks() as demo:
     with gr.Tabs():
         
         #Stock Evaluation Tab, saved into stock_evaluation.csv
-        with gr.Tab("Stock Research Counsel"):
-            gr.Markdown("# The Stock Councel's Panel") 
+        with gr.Tab("Counsel of LLMs"):
+            gr.Markdown("# The Councel that will research and categorize a stock for you...") 
             gr.ChatInterface(
                 fn=response_quaterly,
                 type="messages"
