@@ -1041,6 +1041,4 @@ with gr.Blocks() as demo:
                 type="messages"
             )
 
-demo.launch()
-
-# endregion
+demo.launch(share=True)

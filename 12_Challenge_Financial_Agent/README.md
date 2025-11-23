@@ -116,3 +116,8 @@ Run the main script to launch the Gradio application:
 
 ```bash
 python main.py
+
+
+Open your browser and navigate to the local URL provided in the terminal (typically http://127.0.0.1:7860). The CSV databases will be automatically initialized on the first run.
+
+Disclaimer: This project is for educational and demonstration purposes only. The financial data and analysis provided by the AI agents should not be considered professional financial advice. Mock data is used for stock prices to avoid API costs.

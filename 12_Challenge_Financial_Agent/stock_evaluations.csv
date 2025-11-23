@@ -1,2 +1,4 @@
 stock,LLM_1,LLM_2,LLM_3,price,price_description,p/e,one_sentence_reasoning
 AAPL,Hold,Hold,Buy,352,expensive,high,"The company exhibits strong financial health, consistent quarterly growth, and a fair price-to-earnings ratio."
+MARA,not enough information found,Hold,not enough information found,206,expensive,not enough information found,not enough information found
+PLTR,not enough information found,Sell,not enough information found,369,not enough information found,high,not enough information found
