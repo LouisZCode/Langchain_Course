@@ -42,6 +42,7 @@ from tqdm import tqdm
 import time
 import asyncio
 
+from langchain.agents.middleware.types import dynamic_prompt, ModelRequest
 
 TRADE_LOG = "trades_log.csv"
 PORTFOLIO = "my_portfolio.csv"
@@ -84,6 +85,7 @@ with open("prompts.yaml", "r", encoding="utf-8") as f:
     my_portfolio_prompt = prompts["MY_PORTFOLIO_EXPERT"]
     checker_prompt = prompts["CHECKER"]
     explainer_prompt = prompts["EXPLAINER"]
+    OPPORTUNITY_FINDER_PROMPT_TEMPLATE = prompts["PORTFOLIO_RECOMMENDATOR"]
 #check the prompt loaded in terminal by unlocking and changing the name of this part:
 #print(prompt)
 
@@ -379,7 +381,7 @@ def cash_position_count() -> str:
 
 # endregion
 
-## region Tools for Trades Agent
+##  Tools for Trades Agent
 @tool(
     "read_my_portfolio",
     parse_docstring=True,
@@ -584,9 +586,12 @@ def ticker_admin_tool(ticker_symbol):
 
 def ticker_info_db(ticker_symbol):
     df = pd.read_csv(STOCK_EVALS)
-    ticker_row  = df[df["stock"] == ticker_symbol].to_markdown(index=False)
-    
-    return f"Here the info about {ticker_symbol}:\n{ticker_row}"
+    if  df[df['task_id'] == 'abc12'].empty:
+        return f"We do not have information about {ticker_symbol} in the Database. Ask user to go to the Councel of LLMs"
+    else:
+        ticker_row  = df[df["stock"] == ticker_symbol].to_markdown(index=False)
+        
+        return f"Here the info about {ticker_symbol}:\n{ticker_row}"
 
 
 def download_clean_filings(ticker, keep_files=False): # <--- Added flag
@@ -669,6 +674,85 @@ def download_clean_filings(ticker, keep_files=False): # <--- Added flag
     else:
         print("No chunks were generated.")
 
+## Tool for Expert Financial Consultant
+
+
+RISK_PROMPT_MAP = {
+    "Y.O.L.O": "Identify high-volatility, speculative micro-cap stocks with massive upside potential. Ignore standard safety metrics. Focus on aggressive growth narratives.",
+    "I tolerate a lot of RISK": "Focus on growth stocks with high beta. Accept significant volatility for the chance of market-beating returns.",
+    "I tolerate little risk": "Balance growth and stability. Look for established companies with decent growth prospects and reasonable valuations.",
+    "Lets take NO risks": "Prioritize capital preservation and steady income. Focus on blue-chip, dividend-paying aristocrats with low volatility."
+    }
+
+@tool(
+    "review_stock_data",
+    parse_docstring= True,
+    description="gives back information about the sotck the user is asking about. If no info, lets you know next steps"
+)
+def review_stock_data(ticker_symbol : str) -> str:
+    """
+    Description:
+        Gives back information about the sotck the user is asking about. If no info, lets you know next steps
+    
+    Args:
+        ticker_symbol (str): The stock or ticker symbol of the company that will be reviewed agains users risk tolerance and portfolio.
+    
+    Returns:
+        The ticker symbol information we have in the database. 
+
+    Raises:
+        If not info in the database, lets you know next steps.
+
+    """
+    return ticker_info_db(ticker_symbol)
+
+
+@dynamic_prompt
+def financial_expert_prompt(request: ModelRequest) -> str:
+    """
+    Intercepts the prompt, reads risk from the last message, and cleans the message.
+    """
+    # 1. Get the last message sent (the combined one)
+    last_message = request.messages[-1]
+    content = last_message.content
+
+    # Default risk
+    selected_risk_key = "Y.O.L.O"
+
+    # 2. Look for our special separator pattern
+    if "RISK_CONFIG|||" in content and "|||END_CONFIG" in content:
+        try:
+            # Parse out the text between the separators
+            start_marker = "RISK_CONFIG|||"
+            end_marker = "|||END_CONFIG"
+            start_index = content.find(start_marker) + len(start_marker)
+            end_index = content.find(end_marker)
+            
+            # Extract the risk setting
+            selected_risk_key = content[start_index:end_index]
+
+            # 3. CRITICAL: Clean the message! 
+            # Remove the config part so the LLM only sees the real question.
+            # We update the message content directly in the request object.
+            clean_question = content[end_index + len(end_marker):].strip()
+            last_message.content = clean_question
+
+        except Exception as e:
+            print(f"Error parsing risk config: {e}. Using default.")
+
+    # 4. Select instruction and format prompt (just like before)
+    instruction_text = RISK_PROMPT_MAP[selected_risk_key]
+    
+    final_system_prompt = OPPORTUNITY_FINDER_PROMPT_TEMPLATE.format(
+        user_risk_tolerance=instruction_text
+    )   
+
+    print(f"this is the final system prompt used:\n{final_system_prompt}")
+    return final_system_prompt
+
+# Hi! can you tell me more about how to start my portfolio
+
+
 
 ##  Add all info to agents
 class FinancialInformation(TypedDict):
@@ -738,7 +822,12 @@ my_portfolio_agent = create_agent(
         ])
 
 
-
+opportunity_agent = create_agent(
+    model="anthropic:claude-haiku-4-5",
+    middleware=[financial_expert_prompt],
+    tools=[read_my_portfolio, review_stock_data],
+    checkpointer=InMemorySaver()
+)
 
 
 # endregion
@@ -928,13 +1017,24 @@ def response_my_portfolio(message, history, waiting_for_approval):
 # with the stock, if it is BUY or SELL, quantity and price
 
 ## Find Tailored Opportunities Agent   response function
+    
+async def find_opportunities(message, history, selected_risk_dropdown):
+    
+    # 1. Combine the dropdown value and the user message into one string.
+    # We use a unique separator "|||" to hide the config part later.
+    combined_message = f"RISK_CONFIG|||{selected_risk_dropdown}|||END_CONFIG\n{message}"
 
+    # 2. Send this combined message. No need for 'config={'configurable'...}' anymore!
+    response = await opportunity_agent.ainvoke(
+        {"messages": [{"role": "user", "content": combined_message}]},
+        config={"configurable": {"thread_id": "opp_thread_1"}}
+    )
+
+    return response["messages"][-1].content
 
 
 ## Gradio - ing
 
-
-company_ticker_state = gr.State("")
 waiting_for_approval_state = gr.State(False)
 _update_portfolio_info()
 
@@ -965,13 +1065,15 @@ with gr.Blocks() as demo:
         with gr.Tab("Find Opportunities"):
             gr.Markdown("# Decide What to Buy.. or not to...")
             gr.Markdown("## Decide Your Risk Tolerance:") 
-            gr.Dropdown(
-                label="Rick Tolerance",
+            risk_dropdown = gr.Dropdown(
+                label="Risk Tolerance",
                 interactive=True,
-                choices=["Y.O.L.O", "I tolerate a lot of RISK", "I tolerate little risk", "Lets take NO risks", "I'm Too Young to Die"]
+                choices=["Y.O.L.O", "I tolerate a lot of RISK", "I tolerate little risk", "Lets take NO risks"],
+                value="I tolerate little risk"
                 )
             gr.ChatInterface(
-                fn=response_quaterly,   #Temp while building
+                fn=find_opportunities,
+                additional_inputs=[risk_dropdown],
                 type="messages"
             )
 
