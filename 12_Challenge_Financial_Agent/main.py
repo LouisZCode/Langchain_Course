@@ -678,13 +678,6 @@ def download_clean_filings(ticker, keep_files=False): # <--- Added flag
 ## Tool for Expert Financial Consultant
 
 
-RISK_PROMPT_MAP = {
-    "Y.O.L.O": "Identify high-volatility, speculative micro-cap stocks with massive upside potential. Ignore standard safety metrics. Focus on aggressive growth narratives.",
-    "I tolerate a lot of RISK": "Focus on growth stocks with high beta. Accept significant volatility for the chance of market-beating returns.",
-    "I tolerate little risk": "Balance growth and stability. Look for established companies with decent growth prospects and reasonable valuations.",
-    "Lets take NO risks": "Prioritize capital preservation and steady income. Focus on blue-chip, dividend-paying aristocrats with low volatility."
-    }
-
 @tool(
     "review_stock_data",
     parse_docstring= True,
@@ -707,48 +700,6 @@ def review_stock_data(ticker_symbol : str) -> str:
     """
     return ticker_info_db(ticker_symbol)
 
-
-@dynamic_prompt
-def financial_expert_prompt(request: ModelRequest) -> ModelRequest:
-    """
-    Intercepts the prompt, reads risk from the last message, and cleans the message.
-    """
-    # 1. Get the last message sent (the combined one)
-    last_message = request.messages[-1]
-    content = last_message.content
-
-    # Default risk
-    selected_risk_key = "Y.O.L.O"
-
-    # 2. Look for our special separator pattern
-    if "RISK_CONFIG|||" in content and "|||END_CONFIG" in content:
-        try:
-            # Parse out the text between the separators
-            start_marker = "RISK_CONFIG|||"
-            end_marker = "|||END_CONFIG"
-            start_index = content.find(start_marker) + len(start_marker)
-            end_index = content.find(end_marker)
-            
-            # Extract the risk setting
-            selected_risk_key = content[start_index:end_index]
-
-            clean_question = content[end_index + len(end_marker):].strip()
-            last_message.content = clean_question
-
-        except Exception as e:
-            print(f"Error parsing risk config: {e}. Using default.")
-
-    # 4. Select instruction and format prompt (just like before)
-    instruction_text = RISK_PROMPT_MAP[selected_risk_key]
-    
-    final_system_prompt = OPPORTUNITY_FINDER_PROMPT_TEMPLATE.format(
-        user_risk_tolerance=instruction_text
-    )
-
-    print(f"this is the final system prompt used:\n{final_system_prompt}")
-    return final_system_prompt 
-
-# Hi! can you tell me more about how to start my portfolio
 
 
 
@@ -1028,11 +979,11 @@ def update_risk_state(risk_value):
     print(f"Model changed to: {risk_value}")
     
     if risk_value == "Y.O.L.O":
-        risk_value = "I prefer you to Identify high-volatility, speculative micro-cap stocks with massive upside potential. Ignore standard safety metrics. Focus on aggressive growth narratives.",
+        risk_value = "I prefer you to Identify high-volatility, speculative micro-cap stocks with massive upside potential. Ignore standard safety metrics. Focus on aggressive growth narratives."
     if risk_value =="I tolerate a lot of RISK":
-        risk_value ="I prefer you to Focus on growth stocks with high beta. Accept significant volatility for the chance of market-beating returns.",
+        risk_value ="I prefer you to Focus on growth stocks with high beta. Accept significant volatility for the chance of market-beating returns."
     if risk_value =="I tolerate little risk":
-        risk_value ="I prefer you to Balance growth and stability. Look for established companies with decent growth prospects and reasonable valuations.",
+        risk_value ="I prefer you to Balance growth and stability. Look for established companies with decent growth prospects and reasonable valuations."
     if risk_value =="Lets take NO risks":
         risk_value ="I prefer you to Prioritize capital preservation and steady income. Focus on blue-chip, dividend-paying aristocrats with low volatility."
 
