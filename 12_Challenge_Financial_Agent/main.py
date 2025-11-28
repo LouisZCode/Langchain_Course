@@ -18,6 +18,15 @@ from portfolio_operations import (
     read_my_portfolio, add_to_portfolio, remove_from_portfolio
     )
 
+from stock_data_management import (
+_stock_market_data, stock_market_data_tool, _save_stock_evals, 
+ticker_admin_tool, review_stock_data, ticker_info_db
+)
+
+from sec_data import (
+    download_clean_filings
+)
+
 from langchain.agents import create_agent
 
 
@@ -51,8 +60,7 @@ import ast
 
 from edgar import set_identity, Company
 
-from langchain_community.document_loaders import UnstructuredHTMLLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
